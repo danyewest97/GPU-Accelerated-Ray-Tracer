@@ -19,7 +19,9 @@ struct vector {
     }
 
     __device__ __host__ ~vector() {
-        delete x, y, z;
+        delete[] x;
+        delete[] y;
+        delete[] z;
     }
 
     // Makes a deep copy of/clones this vector (where new vector values are totally separate from the this vector's values)
@@ -141,7 +143,9 @@ struct color {
     }
 
     __device__ __host__ ~color() {
-        delete r, g, b;
+        delete[] r;
+        delete[] g;
+        delete[] b;
     }
 };
 
@@ -162,7 +166,10 @@ struct material {
     }
 
     __device__ __host__ ~material() {
-        delete material_color, diffusion, reflection, refraction;
+        delete[] material_color;
+        delete[] diffusion;
+        delete[] reflection;
+        delete[] refraction;
     }
 };
 
@@ -179,7 +186,8 @@ struct plane {
     }
 
     __device__ __host__ ~plane() {
-        delete normal, d;
+        delete[] normal;
+        delete[] d;
     }
 };
 
@@ -196,7 +204,8 @@ struct ray {
     }
 
     __device__ __host__ ~ray() {
-        delete origin, direction;
+        delete[] origin;
+        delete[] direction;
     }
 };
 
@@ -256,11 +265,16 @@ struct triangle {
         surface_plane = new plane(plane_normal, d);
 
         // Deleting local variables to free memory
-        delete plane_a, plane_b, plane_c, x0, y0, z0, ab, bc;
+        delete ab;
+        delete bc;
     }
 
     __device__ __host__ ~triangle() {
-        delete surface_plane, surface_material, a, b, c;
+        delete[] surface_plane;
+        delete[] surface_material;
+        delete[] a;
+        delete[] b;
+        delete[] c;
     }
 };
 
@@ -277,7 +291,8 @@ struct dimensions {
     }
 
     __device__ __host__ ~dimensions() {
-        delete width, height;
+        delete[] width;
+        delete[] height;
     }
 };
 
@@ -298,7 +313,9 @@ struct camera {
     }
 
     __device__ __host__ ~camera() {
-        delete origin, rotation, fov_scale;
+        delete[] origin;
+        delete[] rotation;
+        delete[] fov_scale;
     }
 };
 
@@ -317,7 +334,9 @@ struct light {
     }
 
     __device__ __host__ ~light() {
-        delete position, rgb, intensity;
+        delete[] position;
+        delete[] rgb;
+        delete[] intensity;
     }
 };
 

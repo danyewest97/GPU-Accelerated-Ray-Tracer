@@ -226,8 +226,9 @@ __global__ void ray_trace_kernel(double* vertices_in, double* img_out, double si
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
 __global__ void test_kernel(color** img_out, camera* cam, dimensions* img_dimensions, triangle** triangles, int num_tris, int start_index, int end_index) {
-    printf("test kernel started\n");
-
+    //printf("test kernel started\n");
+    int global_index = threadIdx.x + blockIdx.x * blockDim.x;
+    //int i = global_index + start_index;
 
     for (int i = start_index; i < end_index; i++) {
         ray* primary_ray = generate_camera_ray(cam, img_dimensions, i);
@@ -238,6 +239,11 @@ __global__ void test_kernel(color** img_out, camera* cam, dimensions* img_dimens
             double* t_out = new double[1];
             vector* collision_point = ray_triangle_intersection_t(primary_ray, curr_tri, has_intersection, t_out);
             *has_an_intersection |= *has_intersection;
+
+            // freeing memory
+            // delete[] has_intersection;
+            // delete[] t_out;
+            // delete collision_point;
         }
 
         if (*has_an_intersection) {
@@ -251,12 +257,14 @@ __global__ void test_kernel(color** img_out, camera* cam, dimensions* img_dimens
             *(img_out[i]->g) = 1;
             *(img_out[i]->b) = 1;
         }
+
+        // freeing memory
+        // delete primary_ray;
+        // delete[] has_an_intersection;
     }
     
 
-    
-
-    printf("test kernel finished\n");
+    //printf("test kernel finished\n");
 }
 
 
@@ -303,13 +311,13 @@ color** run(int width, int height)
 {
     // Kind of a hack, but see note below -- HIP takes a very long time to run the first kernel, but not the ones run after it, so I am including this
     // call to an empty kernel to "initialize" HIP so that the timing for the test_kernel kernel is not offset for debugging/timing purposes
-    initialization<<<
-        dim3(1),
-        dim3(1),
-        0,
-        hipStreamDefault
-    >>>();
-    hipDeviceSynchronize();
+    // initialization<<<
+    //     dim3(1),
+    //     dim3(1),
+    //     0,
+    //     hipStreamDefault
+    // >>>();
+    // hipDeviceSynchronize();
 
     // Note: For some reason, it seems that whenever dynamically allocating memory on the GPU (i.e. with "new"), it adds a baseline ~13 milliseconds
     // to the runtime -- NOT 13 milliseconds per allocation, but 13 milliseconds no matter the amount of allocations happening, if there is at least
@@ -370,12 +378,33 @@ color** run(int width, int height)
         hipStreamDefault
     >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 0, num_pixels);               // Start index is inclusive, end index is exclusive
 
+    // Multithreaded kernel test
+    // test_kernel<<<
+    //     dim3(20),
+    //     dim3(40),
+    //     0,
+    //     hipStreamDefault
+    // >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 0, 800);               // Start index is inclusive, end index is exclusive
+
+    // test_kernel<<<
+    //     dim3(20),
+    //     dim3(40),
+    //     0,
+    //     hipStreamDefault
+    // >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 800, 1600);
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
     
     // Getting our final result from the GPU to the CPU
     color** result = img_to_cpu(img_out, num_pixels);
+
+    // deleting everything on the GPU
+    hipFree(img_out);
+    hipFree(gpu_main_cam);
+    hipFree(gpu_img_dim);
+    hipFree(gpu_triangles);
+
 
     return result;
 }

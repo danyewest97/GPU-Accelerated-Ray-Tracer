@@ -3,11 +3,14 @@
 
 // Loading the necessary libraries for drawing the output image
 import java.util.*;
+// Specifying which Color class to use (unsure why this was an issue, there should only be one, but oh 
 import java.awt.*;
-import java.awt.Color;                      // Specifying which Color class to use (unsure why this was an issue, there should only be one, but oh 
-                                            // well -- maybe util has its own Color class that I didn't know about)
+import java.awt.Color;
+// well -- maybe util has its own Color class that I didn't know about)
 import java.awt.image.*;
+import java.awt.event.*;
 import javax.swing.*;
+import javax.swing.Timer;
 
 public class Main {
     public static int width = 40;
@@ -15,15 +18,19 @@ public class Main {
     public static double[] output = null;
     public native double[] test(int width, int height);                // Declaring a native function name -- native = from a dll/other coding 
                                                                        // language
+    public static boolean is_running = false;                           // Determines whether or not to continue drawing frames
+    public static boolean is_drawing = false;                           // Determines whether or not a frame is currently being drawn
 
     // Runs when the class is loaded (aka immediately after compilation)
     static {
         System.loadLibrary("native");                          // Loading the JNI library that allows us to mesh Java and C++
-                                                                // JNI = Java Native Interface
+                                                               // JNI = Java Native Interface
     }
 
     // Had to rename the Graphics object g to gr so that it didn't mess with the green component name lol
     public static void draw(Graphics gr) {
+        is_drawing = true;
+        //output = new Main().test(width, height);
         if (output != null) {
             BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
             for (int i = 0; i < output.length; i += 3) {
@@ -66,11 +73,21 @@ public class Main {
             // Drawing the image! :D
             gr.drawImage(img, img_x, img_y, observer);
         }
+        is_drawing = false;
     }
+
+
+    public static void stop(JFrame frame, JPanel panel) {
+        //panel.repaint();
+        frame.dispose();
+    }
+
 
     public static JFrame createFrame(int width, int height) {
         JFrame frame = new JFrame("not your average window");                  // Creating a new JFrame (aka a new window) with the given name
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);                  // Making the window terminate the program when closed
+
+        // frame.addWindowListener(stop_on_close);                                 // Adding the WindowListener above so that it is active
+        //frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);                  // Making the window terminate the program when closed
         frame.setSize(width, height);                                           // Setting the size of the window to the size of the image being drawn
         frame.setVisible(true);                                              // Making the window visible
         return frame;
@@ -91,6 +108,20 @@ public class Main {
             }
         };
 
+
+        // An object that listens for when the window is closed, and stops new frames from being drawn when that happens
+        WindowAdapter stop_on_close = new WindowAdapter() {
+            // Using windowClosing() instead of windowClosed() because we are the ones closing the window so windowClosed() will never run
+            @Override
+            public void windowClosing(WindowEvent e) {
+                is_running = false;                                                // Stops new frames from being drawn after closing the window
+                stop(parent, panel);                                                             // Stops the program after setting is_running to false
+            }
+        };
+
+        parent.addWindowListener(stop_on_close); 
+
+
         panel.setPreferredSize(new Dimension(width, height)); // We need to use preferred size instead of size here because pack() only pays attention 
                                                               // to preferred sizes, so the parent frame will not readjust its size unless we set the 
                                                               // preferred size
@@ -104,14 +135,25 @@ public class Main {
         JFrame frame = createFrame(width, height);
         JPanel panel = createPanel(frame);
 
+        is_running = true;
         // Note: DO NOT PUT THIS IN A LOOP OR TIMER WITHOUT MAKING SOME SORT OF TERMINATION SAFETY!! THE GPU CAN CRASH WHEN TERMINATING PREMATURELY!!
-        //for (int i = 0; i < 100; i++) {
-            output = new Main().test(width, height);
-        // for (double color_value : output) {
-        //     System.out.println(color_value);
-        // }
-            panel.repaint();
-        //}
+        
+        // panel.repaint();
+        
+        Timer timer = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // System.out.println("frame");
+                if (!is_drawing) panel.repaint();
+            }
+        });
+        timer.start();
+        
+        
+        for (int i = 0; i < 1; i++) {
+            if (is_running) output = new Main().test(width, height);
+        }
+
 
         System.out.println("\nProgram finished!");
     }
