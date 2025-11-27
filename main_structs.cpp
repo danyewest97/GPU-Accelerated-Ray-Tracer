@@ -5,9 +5,9 @@
 
 // 3D vector with x-, y-, and z-values
 struct vector {
-    double* x = new double[1];
-    double* y = new double[1];
-    double* z = new double[1];
+    double* x = new double();
+    double* y = new double();
+    double* z = new double();
 
     __device__ __host__ vector() {}              // An empty constructor, only used for when allocating memory for a vector to take up in the future (i.e. 
                                         // through "new vector[1]") -- same goes for all other empty constructors following
@@ -18,10 +18,10 @@ struct vector {
         *z = _z;
     }
 
-    __device__ __host__ ~vector() {
-        delete[] x;
-        delete[] y;
-        delete[] z;
+    __device__ __host__ void deep_delete() {
+        delete x;
+        delete y;
+        delete z;
     }
 
     // Makes a deep copy of/clones this vector (where new vector values are totally separate from the this vector's values)
@@ -128,11 +128,16 @@ struct vector {
     }
 };
 
+// Print methods for debugging
+__device__ __host__ void print_vector(vector* v) {
+    printf("(%f, %f, %f)\n", *(v->x), *(v->y), *(v->z));
+}
+
 // RGB color with values between 0-1 (no alpha)
 struct color {
-    double* r = new double[1];
-    double* g = new double[1];
-    double* b = new double[1];
+    double* r = new double();
+    double* g = new double();
+    double* b = new double();
 
     __device__ __host__ color() {}
 
@@ -142,19 +147,19 @@ struct color {
         *b = _b;
     }
 
-    __device__ __host__ ~color() {
-        delete[] r;
-        delete[] g;
-        delete[] b;
+    __device__ __host__ void deep_delete() {
+        delete r;
+        delete g;
+        delete b;
     }
 };
 
 // A template for a material with different parameters that control how the material interacts with light (used in calculating BRDFs)
 struct material {
-    color* material_color = new color[1];
-    double* diffusion = new double[1];
-    double* reflection = new double[1];
-    double* refraction = new double[1];
+    color* material_color;
+    double* diffusion = new double();
+    double* reflection = new double();
+    double* refraction = new double();
 
     __device__ __host__ material() {}
 
@@ -165,18 +170,18 @@ struct material {
         *refraction = _refraction;
     }
 
-    __device__ __host__ ~material() {
-        delete[] material_color;
-        delete[] diffusion;
-        delete[] reflection;
-        delete[] refraction;
+    __device__ __host__ void deep_delete() {
+        delete material_color;
+        delete diffusion;
+        delete reflection;
+        delete refraction;
     }
 };
 
 // A 3D plane with components a, b, c, d, expressed by equation ax + by + cz + d = 0
 struct plane {
-    vector* normal = new vector[1];                     // vector to store the components of the plane's normal as (a, b, c)
-    double* d = new double[1];
+    vector* normal;                     // vector to store the components of the plane's normal as (a, b, c)
+    double* d = new double();
 
     __device__ __host__ plane() {}
 
@@ -185,16 +190,16 @@ struct plane {
         *d = _d;
     }
 
-    __device__ __host__ ~plane() {
-        delete[] normal;
-        delete[] d;
+    __device__ __host__ void deep_delete() {
+        delete normal;
+        delete d;
     }
 };
 
 // A 3D Ray that starts from the 3D point origin and points in the direction given by the direction vector
 struct ray {
-    vector* origin = new vector[1];
-    vector* direction = new vector[1];
+    vector* origin;
+    vector* direction;
 
     __device__ __host__ ray() {}
 
@@ -203,19 +208,19 @@ struct ray {
         direction = _direction;
     }
 
-    __device__ __host__ ~ray() {
-        delete[] origin;
-        delete[] direction;
+    __device__ __host__ void deep_delete() {
+        delete origin;
+        delete direction;
     }
 };
 
 // A 3D triangle defined by the 3 vectors a, b, and c, with the given material and plane
 struct triangle {
-    plane* surface_plane = new plane[1];               // the 3D plane that the triangle sits on
-    material* surface_material = new material[1];         // the material that the triangle is "made out of," defining how light rays should interact with the triangle
-    vector* a = new vector[1];
-    vector* b = new vector[1];
-    vector* c = new vector[1];
+    plane* surface_plane;               // the 3D plane that the triangle sits on
+    material* surface_material;         // the material that the triangle is "made out of," defining how light rays should interact with the triangle
+    vector* a;
+    vector* b;
+    vector* c;
 
     __device__ __host__ triangle() {}
 
@@ -269,19 +274,19 @@ struct triangle {
         delete bc;
     }
 
-    __device__ __host__ ~triangle() {
-        delete[] surface_plane;
-        delete[] surface_material;
-        delete[] a;
-        delete[] b;
-        delete[] c;
+    __device__ __host__ void deep_delete() {
+        delete surface_plane;
+        delete surface_material;
+        delete a;
+        delete b;
+        delete c;
     }
 };
 
 // A container to hold the height and width of an image (or anything else with height and width)
 struct dimensions {
-    int* width = new int[1];
-    int* height = new int[1];
+    int* width = new int();
+    int* height = new int();
 
     __device__ __host__ dimensions() {}
 
@@ -290,18 +295,18 @@ struct dimensions {
         *height = _height;
     }
 
-    __device__ __host__ ~dimensions() {
-        delete[] width;
-        delete[] height;
+    __device__ __host__ void deep_delete() {
+        delete width;
+        delete height;
     }
 };
 
 // 3D camera, defines where the camera rays originate and in which direction they radiate, to control where the viewport is looking
 struct camera {
-    vector* origin = new vector[1];     // The 3D point where all camera rays originate from
-    vector* rotation = new vector[1];   // The direction where camera rays radiate from the origin, with components (x_rotation, y_rotation, 
+    vector* origin;                         // The 3D point where all camera rays originate from
+    vector* rotation;                       // The direction where camera rays radiate from the origin, with components (x_rotation, y_rotation, 
     // z_rotation)
-    double* fov_scale = new double[1];  // The field-of-view parameters, expressed in radians, that define how far left/right or up/down the camera 
+    double* fov_scale = new double();   // The field-of-view parameters, expressed in radians, that define how far left/right or up/down the camera 
     // can see
 
     __device__ __host__ camera() {}
@@ -312,18 +317,18 @@ struct camera {
         *fov_scale = _fov_scale;
     }
 
-    __device__ __host__ ~camera() {
-        delete[] origin;
-        delete[] rotation;
-        delete[] fov_scale;
+    __device__ __host__ void deep_delete() {
+        delete origin;
+        delete rotation;
+        delete fov_scale;
     }
 };
 
 // 3D point-source light with color, position, and intensity
 struct light {
-    vector* position = new vector[1];
-    color* rgb = new color[1];
-    double* intensity = new double[1];
+    vector* position;
+    color* rgb;
+    double* intensity = new double();
 
     __device__ __host__ light() {}
 
@@ -333,10 +338,11 @@ struct light {
         *intensity = _intensity;
     }
 
-    __device__ __host__ ~light() {
-        delete[] position;
-        delete[] rgb;
-        delete[] intensity;
+    __device__ __host__ void deep_delete() {
+        delete position;
+        delete rgb;
+        delete intensity;
+        delete this;
     }
 };
 
@@ -410,7 +416,7 @@ __device__ double* ray_plane_intersection_t(ray* r, plane* p, bool* has_intersec
                                                                         
                                                                         
 
-    double* result = new double[1];
+    double* result = new double();
     result[0] = right / left;
     return result;                                                     // After the last step, the equation is something like c = kt, where c and k are some given constants, and 
                                                                         // we need to isolate t so we divide both sides by k to get t = c / k
@@ -490,22 +496,17 @@ __device__ vector* ray_triangle_intersection_t(ray* r, triangle* t, bool* has_in
 
     *has_intersection = contains(i, j, x1, y1, x2, y2, x3, y3);
 
+
     if (*has_intersection) {
         return collision_point;
     } else {
+        // delete collision_point;
         vector* result = new vector(0, 0, 0);
         *t_out = 0;
         return result;
     }
 }
 
-
-
-
-// Print methods for debugging
-__device__ __host__ void print_vector(vector* v) {
-    printf("(%f, %f, %f)", *v->x, *v->y, *v->z);
-}
 
 
 

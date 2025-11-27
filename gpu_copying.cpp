@@ -20,7 +20,7 @@ __host__ vector* vector_to_gpu(vector* cpu_var) {
     // I just named this gpu_var to make it easier to copy 
     // and paste the function to add all of the different structs.
     // Basically it's a vector on the CPU that has the addresses of its corresponding members on the GPU
-    vector* gpu_var = new vector[1];
+    vector* gpu_var = new vector();
     gpu_var->x = gpu_x;
     gpu_var->y = gpu_y;
     gpu_var->z = gpu_z;
@@ -28,6 +28,8 @@ __host__ vector* vector_to_gpu(vector* cpu_var) {
     vector* result;
     hipMalloc(&result, sizeof(vector));
     hipMemcpy(result, gpu_var, sizeof(vector), hipMemcpyHostToDevice);
+
+    delete gpu_var;
 
     return result;
 }
@@ -47,14 +49,17 @@ __host__ color* color_to_gpu(color* cpu_var) {
     hipMemcpy(gpu_b, cpu_var->b, sizeof(double), hipMemcpyHostToDevice);
 
 
-    color* gpu_var = new color[1];
+    color* gpu_var = new color();
     gpu_var->r = gpu_r;
     gpu_var->g = gpu_g;
     gpu_var->b = gpu_b;
 
+    
     color* result;
     hipMalloc(&result, sizeof(color));
     hipMemcpy(result, gpu_var, sizeof(color), hipMemcpyHostToDevice);
+    
+    delete gpu_var;
 
     return result;
 }
@@ -76,7 +81,7 @@ __host__ material* material_to_gpu(material* cpu_var) {
     hipMemcpy(gpu_refraction, cpu_var->refraction, sizeof(double), hipMemcpyHostToDevice);
 
 
-    material* gpu_var = new material[1];
+    material* gpu_var = new material();
     gpu_var->material_color = gpu_material_color;
     gpu_var->diffusion = gpu_diffusion;
     gpu_var->reflection = gpu_reflection;
@@ -85,6 +90,8 @@ __host__ material* material_to_gpu(material* cpu_var) {
     material* result;
     hipMalloc(&result, sizeof(material));
     hipMemcpy(result, gpu_var, sizeof(material), hipMemcpyHostToDevice);
+
+    delete gpu_var;
 
     return result;
 }
@@ -98,7 +105,7 @@ __host__ plane* plane_to_gpu(plane* cpu_var) {
     hipMemcpy(gpu_d, cpu_var->d, sizeof(double), hipMemcpyHostToDevice);
 
 
-    plane* gpu_var = new plane[1];
+    plane* gpu_var = new plane();
     gpu_var->normal = gpu_normal;
     gpu_var->d = gpu_d;
 
@@ -106,6 +113,8 @@ __host__ plane* plane_to_gpu(plane* cpu_var) {
     hipMalloc(&result, sizeof(plane));
     hipMemcpy(result, gpu_var, sizeof(plane), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -116,7 +125,7 @@ __host__ ray* ray_to_gpu(ray* cpu_var) {
     vector* gpu_direction = vector_to_gpu(cpu_var->direction);
 
 
-    ray* gpu_var = new ray[1];
+    ray* gpu_var = new ray();
     gpu_var->origin = gpu_origin;
     gpu_var->direction = gpu_direction;
 
@@ -124,6 +133,8 @@ __host__ ray* ray_to_gpu(ray* cpu_var) {
     hipMalloc(&result, sizeof(ray));
     hipMemcpy(result, gpu_var, sizeof(ray), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -140,7 +151,7 @@ __host__ triangle* triangle_to_gpu(triangle* cpu_var) {
     vector* gpu_c = vector_to_gpu(cpu_var->c);
 
 
-    triangle* gpu_var = new triangle[1];
+    triangle* gpu_var = new triangle();
     gpu_var->surface_plane = gpu_surface_plane;
     gpu_var->surface_material = gpu_surface_material;
     gpu_var->a = gpu_a;
@@ -151,6 +162,8 @@ __host__ triangle* triangle_to_gpu(triangle* cpu_var) {
     hipMalloc(&result, sizeof(triangle));
     hipMemcpy(result, gpu_var, sizeof(triangle), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -165,7 +178,7 @@ __host__ dimensions* dimensions_to_gpu(dimensions* cpu_var) {;
     hipMemcpy(gpu_height, cpu_var->height, sizeof(int), hipMemcpyHostToDevice);
 
 
-    dimensions* gpu_var = new dimensions[1];
+    dimensions* gpu_var = new dimensions();
     gpu_var->width = gpu_width;
     gpu_var->height = gpu_height;
 
@@ -173,6 +186,8 @@ __host__ dimensions* dimensions_to_gpu(dimensions* cpu_var) {;
     hipMalloc(&result, sizeof(dimensions));
     hipMemcpy(result, gpu_var, sizeof(dimensions), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -186,7 +201,7 @@ __host__ camera* camera_to_gpu(camera* cpu_var) {
     hipMalloc(&gpu_fov_scale, sizeof(double));
     hipMemcpy(gpu_fov_scale, cpu_var->fov_scale, sizeof(double), hipMemcpyHostToDevice);
 
-    camera* gpu_var = new camera[1];
+    camera* gpu_var = new camera();
     gpu_var->origin = gpu_origin;
     gpu_var->rotation = gpu_rotation;
     gpu_var->fov_scale = gpu_fov_scale;
@@ -195,6 +210,8 @@ __host__ camera* camera_to_gpu(camera* cpu_var) {
     hipMalloc(&result, sizeof(camera));
     hipMemcpy(result, gpu_var, sizeof(camera), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -209,7 +226,7 @@ __host__ light* light_to_gpu(light* cpu_var) {
     hipMemcpy(gpu_intensity, cpu_var->intensity, sizeof(double), hipMemcpyHostToDevice);
 
 
-    light* gpu_var = new light[1];
+    light* gpu_var = new light();
     gpu_var->position = gpu_position;
     gpu_var->rgb = gpu_rgb;
     gpu_var->intensity = gpu_intensity;
@@ -218,6 +235,8 @@ __host__ light* light_to_gpu(light* cpu_var) {
     hipMalloc(&result, sizeof(light));
     hipMemcpy(result, gpu_var, sizeof(light), hipMemcpyHostToDevice);
 
+    delete gpu_var;
+    
     return result;
 }
 
@@ -227,23 +246,26 @@ __host__ light* light_to_gpu(light* cpu_var) {
 // the same variable copied to the CPU with all of its members. This will need to be implemented for every struct as well eventually, but for now I am 
 // only doing the color struct in order to get an output image
 __host__ color* color_to_cpu(color* gpu_var) {
-    color* cpu_var = new color[1];
+    color* cpu_var = new color();
     hipMemcpy(cpu_var, gpu_var, sizeof(color), hipMemcpyDeviceToHost);                      // Copying the GPU addresses over so that we can access 
     // them in the following lines, on the CPU
     
-    double* cpu_r = new double[1];
+    double* cpu_r = new double();
     hipMemcpy(cpu_r, cpu_var->r, sizeof(double), hipMemcpyDeviceToHost);
+    hipFree(cpu_var->r);
 
-    double* cpu_g = new double[1];
+    double* cpu_g = new double();
     hipMemcpy(cpu_g, cpu_var->g, sizeof(double), hipMemcpyDeviceToHost);
+    hipFree(cpu_var->g);
 
-    double* cpu_b = new double[1];
+    double* cpu_b = new double();
     hipMemcpy(cpu_b, cpu_var->b, sizeof(double), hipMemcpyDeviceToHost);
+    hipFree(cpu_var->b);
 
     cpu_var->r = cpu_r;
     cpu_var->g = cpu_g;
     cpu_var->b = cpu_b;
-
+    
     return cpu_var;
 }
 
@@ -258,6 +280,7 @@ __host__ color** img_to_cpu(color** gpu_var, int size) {
     
     for (int i = 0; i < size; i++) {
         color* cpu_color = color_to_cpu(cpu_var[i]);
+        hipFree(cpu_var[i]);
         cpu_var[i] = cpu_color;
     }
     

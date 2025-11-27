@@ -13,13 +13,12 @@ import javax.swing.*;
 import javax.swing.Timer;
 
 public class Main {
-    public static int width = 40;
-    public static int height = 40;
+    public static int width = 20;
+    public static int height = 20;
     public static double[] output = null;
-    public native double[] test(int width, int height);                // Declaring a native function name -- native = from a dll/other coding 
-                                                                       // language
-    public static boolean is_running = false;                           // Determines whether or not to continue drawing frames
-    public static boolean is_drawing = false;                           // Determines whether or not a frame is currently being drawn
+    public native int generateFrame();                                  // Declaring a native function name -- native = from a dll/other coding 
+    // language
+    public native double[] initializeOutput(int width, int height);                // Declaring a native function name -- native = from a dll/other coding 
 
     // Runs when the class is loaded (aka immediately after compilation)
     static {
@@ -29,7 +28,6 @@ public class Main {
 
     // Had to rename the Graphics object g to gr so that it didn't mess with the green component name lol
     public static void draw(Graphics gr) {
-        is_drawing = true;
         //output = new Main().test(width, height);
         if (output != null) {
             BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -38,26 +36,26 @@ public class Main {
                 double r = output[i];
                 double g = output[i + 1];
                 double b = output[i + 2];
-
+                
                 // Normalising the color values to fall between 0 and 1
                 r = Math.max(0, Math.min(1, r));
                 g = Math.max(0, Math.min(1, g));
                 b = Math.max(0, Math.min(1, b));
-
+                
                 // Converting the double color values to integer color values (may switch BufferedImage color mode to circumvent this later)
                 // Adding 0.5 to round the color values to the nearest integer
                 int r_int =  255 * (int) (r + 0.5);
                 int g_int =  255 * (int) (g + 0.5);
                 int b_int =  255 * (int) (b + 0.5);
-
+                
                 // Calculating the image x- and y-values from the index of the pixel we are on (i / 3 because there are 3 color values for each pixel)
                 int pixel_idx = i / 3;
                 int x = pixel_idx % width;
                 int y = pixel_idx / width;
-
+                
                 Color pixel_color = new Color(r_int, g_int, b_int);                     // Creating a new color with our new integer color values
                 int pixel_color_rgb_int_value = pixel_color.getRGB();                   // Taking the RGB of this new color, as an integer, which is  
-                                                                                        // needed to pass it to setRGB()
+                // needed to pass it to setRGB()
                 img.setRGB(x, y, pixel_color_rgb_int_value);                            // Setting the color of the final pixel in our image
             }
             
@@ -65,15 +63,14 @@ public class Main {
             // Coordinates on the JPanel where the image is drawn -- set to (0, 0) because we want the image to fill the whole JPanel with no offset
             int img_x = 0;
             int img_y = 0;
-
+            
             // A placeholder variable for the ImageObserver argument in drawImage, not really sure what ImageObservers are or how they work but we 
             // don't need to specify an observer in this case, it's fine to leave null
             ImageObserver observer = null;
-
+            
             // Drawing the image! :D
             gr.drawImage(img, img_x, img_y, observer);
         }
-        is_drawing = false;
     }
 
 
@@ -114,7 +111,6 @@ public class Main {
             // Using windowClosing() instead of windowClosed() because we are the ones closing the window so windowClosed() will never run
             @Override
             public void windowClosing(WindowEvent e) {
-                is_running = false;                                                // Stops new frames from being drawn after closing the window
                 stop(parent, panel);                                                             // Stops the program after setting is_running to false
             }
         };
@@ -132,29 +128,37 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("Running!");
+        Main command_executor = new Main();
         JFrame frame = createFrame(width, height);
         JPanel panel = createPanel(frame);
-
-        is_running = true;
         // Note: DO NOT PUT THIS IN A LOOP OR TIMER WITHOUT MAKING SOME SORT OF TERMINATION SAFETY!! THE GPU CAN CRASH WHEN TERMINATING PREMATURELY!!
         
-        // panel.repaint();
-        
+        output = command_executor.initializeOutput(width, height);
+
+
         Timer timer = new Timer(1000, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 // System.out.println("frame");
-                if (!is_drawing) panel.repaint();
             }
         });
         timer.start();
         
         
-        for (int i = 0; i < 1; i++) {
-            if (is_running) output = new Main().test(width, height);
+        for (int i = 0; i < 10; i++) {
+            System.out.println("frame " + i + "\n");
+            command_executor.generateFrame();
+            panel.repaint();
+
+            try {
+                Thread.sleep(1000);
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
         }
-
-
+        
+        
         System.out.println("\nProgram finished!");
+        System.exit(0);
     }
 }
