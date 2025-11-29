@@ -43,12 +43,6 @@ struct bounding_box {
     }
 
     __device__ ~bounding_box() {
-        delete child_index;
-        delete x_min;
-        delete x_max;
-        delete y_min;
-        delete y_max;
-        delete z_min;
-        delete z_max;
+        delete child_index, x_min, x_max, y_min, y_max, z_min, z_max;
     }
 };

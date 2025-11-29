@@ -14,12 +14,6 @@
 #include "specific_structs.cpp" // Includes all of the required more-specific structs and their constructors, plus some methods for them
 #include "gpu_copying.cpp" // Includes all of the required functions for copying structs AND THEIR MEMBERS*** over to the GPU
 
-color** output; // Output image
-jdouble* java_output_values; // The output image on the Java side, converted into an array of doubles
-jdoubleArray java_output_reference; // A reference to the output image in a Java type, needed for updating generated values to Java
-int width;
-int height;
-
 // #include "arrays.cpp" // Includes all of the required structs and their constructors, plus some methods for them
 // NOTE: Convention will be to use custom-made array types (in arrays.cpp) for ALL arrays, and only using pointers when the pointer is pointing to a 
 // SINGLE value and not multiple. This allows for bounds-checking and is much safer. --EDIT: Leaving as a suggestion for now, may implement later if it
@@ -167,18 +161,6 @@ __device__ ray* generate_camera_ray(camera* curr_cam, dimensions* img_dim, int p
 }
 
 
-struct temp_vector {
-    double x;
-    double y;
-    double z;
-    __host__ __device__ temp_vector(double _x, double _y, double _z) {
-        x = _x;
-        y = _y;
-        z = _z;
-    }
-};
-
-
 // Note from self: switch to camera at (0, 0, 0) with translation (like KSA and BRUTAL) instead of translating the camera itself??
 // Also need to add scaling of camera
 // Same as above but takes an index instead of pixel coordinates
@@ -207,17 +189,15 @@ __device__ ray* generate_camera_ray(camera* curr_cam, dimensions* img_dim, int i
     
     double x = (-(double) (*width) / 2) + pixel_x + 0.5;
     double y = (-(double) (*height) / 2) + pixel_y + 0.5;
-    
-    temp_vector true_origin(1, 0, 0);                         // We will initially draw rays originating from (0, 0, 0), then translate 
+    vector* true_origin = new vector(0, 0, 0);                              // We will initially draw rays originating from (0, 0, 0), then translate 
     // and rotate them according to the camera's position
-    // printf("%f\n", *true_origin.x);
-    // vector* ray_direction = new vector(x, y, *passthrough_plane_distance);      // Adding a 0.5 unit offset to position rays into the middle of each
+    vector* ray_direction = new vector(x, y, *passthrough_plane_distance);      // Adding a 0.5 unit offset to position rays into the middle of each
                                                                                 // pixel, instead of the top-right corner without the offset
     
     
-    // ray* curr_ray = new ray(true_origin, ray_direction);                    // Creating the initial ray, not yet conformed to the camera's orientation
+    ray* curr_ray = new ray(true_origin, ray_direction);                    // Creating the initial ray, not yet conformed to the camera's orientation
     
-    // cam_origin->add(curr_ray->origin);                                      // Orienting the ray to be lined up properly with the camera (translating 
+    cam_origin->add(curr_ray->origin);                                      // Orienting the ray to be lined up properly with the camera (translating 
     // to the camera's origin)
     
     // TODO: Make this into one operation, by precalculating the single matrix needed for all three rotations and only using that matrix
@@ -227,13 +207,13 @@ __device__ ray* generate_camera_ray(camera* curr_cam, dimensions* img_dim, int i
                                                                             // location-dependent and should therefore be rotated about (0, 0, 0)
     //curr_ray->direction->rotate_y(true_origin, *cam_normal->y);
     //curr_ray->direction->rotate_z(true_origin, *cam_normal->z);
-    // curr_ray->direction->normalize();                                         // Normalizing the ray's direction so that distances returned from intersection methods will be 
+    curr_ray->direction->normalize();                                         // Normalizing the ray's direction so that distances returned from intersection methods will be 
                                                                             // absolute and not scaled by the ray direction's length (the t-value, or distance, returned from the 
                                                                             // ray-plane and ray-triangle intersection methods is dependent upon the ray direction's length, so if 
                                                                             // that length is 1, the t-value returned will be the same as the Euclidean distance from the ray's 
                                                                             // origin to the intersection point)
-    return NULL;
-    // return curr_ray;
+
+    return curr_ray;
 }
 
 
@@ -246,75 +226,107 @@ __global__ void ray_trace_kernel(double* vertices_in, double* img_out, double si
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
 __global__ void test_kernel(color** img_out, camera* cam, dimensions* img_dimensions, triangle** triangles, int num_tris, int start_index, int end_index) {
-    //printf("test kernel started\n");
-    int global_index = threadIdx.x + blockIdx.x * blockDim.x;
-    //int i = global_index + start_index;
+    printf("test kernel started\n");
+
 
     for (int i = start_index; i < end_index; i++) {
         ray* primary_ray = generate_camera_ray(cam, img_dimensions, i);
-        // bool has_an_intersection = false;
-        // for (int j = 0; j < num_tris; j++) {
-        //     triangle* curr_tri = triangles[j];
-        //     bool* has_intersection = new bool();
-        //     double* t_out = new double();
-            // print_vector(curr_tri->surface_plane->normal);
+        bool* has_an_intersection = new bool[1];
+        for (int j = 0; j < num_tris; j++) {
+            triangle* curr_tri = triangles[j];
+            bool* has_intersection = new bool[1];
+            double* t_out = new double[1];
+            vector* collision_point = ray_triangle_intersection_t(primary_ray, curr_tri, has_intersection, t_out);
+            *has_an_intersection |= *has_intersection;
+        }
 
-            // printf("%f ", a);
-            // printf("%f %f %f ", x, y, z);
-
-            // vector* collision_point = ray_triangle_intersection_t(primary_ray, curr_tri, has_intersection, t_out);
-            // has_an_intersection |= *has_intersection;
-
-            // freeing memory
-            // delete has_intersection;
-            // delete t_out;
-            // delete collision_point;
-        // }
-
-        // if (has_an_intersection) {
+        if (*has_an_intersection) {
             // IDK why this way doesn't work
             //color* white = new color(1, 1, 1);
             //img_out[i] = white;
 
             // NOTE: IDK why I have to do it this way (why just doing img_out = new color(1, 1, 1) doesn't work), I have some suspicions but it feels
             // wrong to have to do it this way. There must be a better way.
-            // *(img_out[i]->r) = 1;
-            // *(img_out[i]->g) = 1;
-            // *(img_out[i]->b) = 1;
-        // }
-
-        // freeing memory
-        // primary_ray->deep_delete();
-        // delete primary_ray;
+            *(img_out[i]->r) = 1;
+            *(img_out[i]->g) = 1;
+            *(img_out[i]->b) = 1;
+        }
     }
     
 
-    //printf("test kernel finished\n");
+    
+
+    printf("test kernel finished\n");
 }
 
 
 __global__ void initialization() {}
 
 
-
-int num_pixels;
-int num_tris;
-color** img_out;
-camera* gpu_main_cam;
-dimensions* gpu_img_dim;
-triangle** gpu_triangles;
-void initialize_and_copy_parameters_to_GPU() {
-    // std::size_t size = 2048;
-    // hipDeviceGetLimit(&size, hipLimitMallocHeapSize);
-    // hipDeviceSetLimit(hipLimitStackSize, size);
-
-
-    // The number of pixels and size of our output image
-    num_pixels = width * height;
-    int img_size = num_pixels * sizeof(color*);              // The amount of memory we need for our image
+// Runs the test kernel iterations times and spits out the average time per iteration, in nanoseconds
+// Needs to be updated
+void run_test_kernel(int iterations) {
+    int* times = new int[iterations];                                                   // An array to store the results of the test_kernel running 
+                                                                                        // multiple times, to take the average time
+    for (int i = iterations; i >= 0; i--) {
+        auto start = std::chrono::high_resolution_clock::now();                         // For timing, to see how long the test function takes to run
+        
+        //test_kernel<<<
+        //    dim3(1),
+        //    dim3(1),
+        //    0,
+        //    hipStreamDefault
+        //>>>(new color[1]);
+        
+        // Wait on all active streams on the current device. VERY NECESSARY
+        hipDeviceSynchronize();
+        auto finish = std::chrono::high_resolution_clock::now();
+        //std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "ns\n";
+        if (i < iterations) {           // Throwing out the first time because it still seems to have some baseline delay before running ¯\_(ツ)_/¯
+            times[i] = std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count();
+        }
+    }
     
-    // The output image, we are not initializing it with any memory because we want it to be
-    // initialized in the device/GPU's memory, not the host/CPU's memory
+    int sum = 0;
+    for (int i = 0; i < iterations; i++) {
+        sum += times[i];
+    }
+    printf("%i\n", sum / iterations);
+}
+
+
+// Important note: not sure how much overhead variable creation and logic happening inside the kernel is adding, because I am not just sending
+// a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
+// on the kernel
+
+color** run(int width, int height)
+{
+    // Kind of a hack, but see note below -- HIP takes a very long time to run the first kernel, but not the ones run after it, so I am including this
+    // call to an empty kernel to "initialize" HIP so that the timing for the test_kernel kernel is not offset for debugging/timing purposes
+    initialization<<<
+        dim3(1),
+        dim3(1),
+        0,
+        hipStreamDefault
+    >>>();
+    hipDeviceSynchronize();
+
+    // Note: For some reason, it seems that whenever dynamically allocating memory on the GPU (i.e. with "new"), it adds a baseline ~13 milliseconds
+    // to the runtime -- NOT 13 milliseconds per allocation, but 13 milliseconds no matter the amount of allocations happening, if there is at least
+    // one allocation.
+    // In other words, if you don't allocate anything dynamically, the runtime stays low, but as soon as you make even a bool* with a single bit of 
+    // memory using the "new" operator, runtime jumps up by 13 ms, and it stays that way no matter how much more memory you allocate.
+    // ALSO: When running a kernel multiple times in a for-loop, the base runtime is around 500 (!!) ms, even running an empty kernel. However, I 
+    // think this is just an "initialization" period that HIP needs to start communicating with the GPU, or something similar, because it isn't there 
+    // for further runs of the same kernel -- only the first run.
+    
+    //run_test_kernel(1);
+    
+    // The number of pixels and size of our output image
+    int num_pixels = width * height;
+    int img_size = num_pixels * sizeof(color*);              // The amount of memory we need for our image
+    color** img_out;                                         // The output image, we are not initializing it with any memory because we want it to be
+                                                             // initialized in the device/GPU's memory, not the host/CPU's memory
     hipMalloc(&img_out, img_size);
 
     // Filling the img with black pixels
@@ -332,7 +344,7 @@ void initialize_and_copy_parameters_to_GPU() {
 
     dimensions* img_dim = new dimensions(width, height);
 
-    num_tris = 1;
+    int num_tris = 1;
     int size_of_triangles = num_tris * sizeof(triangle*);
     triangle** triangles = new triangle*[num_tris];
     
@@ -342,32 +354,14 @@ void initialize_and_copy_parameters_to_GPU() {
     triangles[0] = test_gpu;
 
     // Copying all of the variables above to the GPU memory
-    gpu_main_cam = camera_to_gpu(main_cam);
+    camera* gpu_main_cam = camera_to_gpu(main_cam);
 
-    gpu_img_dim = dimensions_to_gpu(img_dim);
+    dimensions* gpu_img_dim = dimensions_to_gpu(img_dim);
 
+    triangle** gpu_triangles;
     hipMalloc(&gpu_triangles, size_of_triangles);
     hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
-}
 
-// Important note: not sure how much overhead variable creation and logic happening inside the kernel is adding, because I am not just sending
-// a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
-// on the kernel
-
-int run()
-{
-    // Note: For some reason, it seems that whenever dynamically allocating memory on the GPU (i.e. with "new"), it adds a baseline ~13 milliseconds
-    // to the runtime -- NOT 13 milliseconds per allocation, but 13 milliseconds no matter the amount of allocations happening, if there is at least
-    // one allocation.
-    // In other words, if you don't allocate anything dynamically, the runtime stays low, but as soon as you make even a bool* with a single bit of 
-    // memory using the "new" operator, runtime jumps up by 13 ms, and it stays that way no matter how much more memory you allocate.
-    // ALSO: When running a kernel multiple times in a for-loop, the base runtime is around 500 (!!) ms, even running an empty kernel. However, I 
-    // think this is just an "initialization" period that HIP needs to start communicating with the GPU, or something similar, because it isn't there 
-    // for further runs of the same kernel -- only the first run.
-    
-
-
-    
     // Starting the kernel
     test_kernel<<<
         dim3(1),
@@ -376,110 +370,50 @@ int run()
         hipStreamDefault
     >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 0, num_pixels);               // Start index is inclusive, end index is exclusive
 
-
-    // Multithreaded kernel test
-    // test_kernel<<<
-    //     dim3(20),
-    //     dim3(40),
-    //     0,
-    //     hipStreamDefault
-    // >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 0, 800);               // Start index is inclusive, end index is exclusive
-
-    // test_kernel<<<
-    //     dim3(20),
-    //     dim3(40),
-    //     0,
-    //     hipStreamDefault
-    // >>>(img_out, gpu_main_cam, gpu_img_dim, gpu_triangles, num_tris, 800, 1600);
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
     
     // Getting our final result from the GPU to the CPU
-    output = img_to_cpu(img_out, num_pixels);
-    
+    color** result = img_to_cpu(img_out, num_pixels);
 
-    // deleting everything on the GPU
-    // hipFree(img_out);                           // hipMalloc(&img_out, img_size);
-    // for (int i = 0; i < num_pixels; i++) {
-    //     hipFree(blank_image[i]);                // blank_image[i] = color_to_gpu(new color(0, 0, 0));
-    // }
-    // hipFree(test_gpu);                          // triangle* test_gpu = triangle_to_gpu(test_tri_1);
-    // hipFree(gpu_main_cam);                      // camera* gpu_main_cam = camera_to_gpu(main_cam);
-    // hipFree(gpu_img_dim);                       // dimensions* gpu_img_dim = dimensions_to_gpu(img_dim);
-    // hipFree(gpu_triangles);                     // hipMalloc(&gpu_triangles, size_of_triangles);
-
-    // delete[] blank_image;                       // color** blank_image = new color*[num_pixels];
-    // delete[] triangles;                         // triangle** triangles = new triangle*[num_tris];
-    // delete main_cam;                            // camera* main_cam = new camera(cam_origin, cam_direction, fov_scale);
-    // delete img_dim;                             // dimensions* img_dim = new dimensions(width, height);
-    // test_tri_1->deep_delete();
-    // delete test_tri_1;                          // triangle* test_tri_1 = new triangle(placeholder_material, new vector(0, 0, 1), new vector(10, 0, 1), new vector(0, 10, 1));
-    
-    
-    // std::cout << hipGetLastError();
-    hipDeviceReset();
-    return 0;
+    return result;
 }
 
 
 
 
-
-
-void convert_image_to_java_array(JNIEnv* env) {
+JNIEXPORT jdoubleArray JNICALL Java_Main_test(JNIEnv* env, jobject thisObject, jint width, jint height) {
+    color** img = run(width, height);
 
     int num_pixels = width * height;
     int num_colors = num_pixels * 3;
+    jdoubleArray img_java = env->NewDoubleArray(num_colors);
 
     // Creating a usable shallow copy of the img_java array as a jdouble pointer, and filling it with the color values calculated by the GPU to send 
     // back to the Java host program to be displayed
-    jboolean is_copy = JNI_FALSE;
-    java_output_values = env->GetDoubleArrayElements(java_output_reference, &is_copy);
+    jboolean* is_copy_ptr = new jboolean[1];
+    *is_copy_ptr = JNI_FALSE;
+    jdouble* arr_ptrs = env->GetDoubleArrayElements(img_java, is_copy_ptr);              // Getting the img_out jdoubleArray object as a C++ array
     for (int i = 0; i < num_pixels; i++) {
         // Taking the color values from each pixel
-        color* curr_color = output[i];
+        color* curr_color = img[i];
         double r = *curr_color->r;
         double g = *curr_color->g;
         double b = *curr_color->b;
-        
-        int color_value_idx = i * 3;
-        
+
+        int arr_idx = i * 3;
+
         // Copying the color values to the arr_ptrs array (jdouble == double, basically, so we don't need to convert manually at all)
-        // java_output_values[color_value_idx] = r;
-        // java_output_values[color_value_idx + 1] = g;
-        // java_output_values[color_value_idx + 2] = b;
+        arr_ptrs[arr_idx] = r;
+        arr_ptrs[arr_idx + 1] = g;
+        arr_ptrs[arr_idx + 2] = b;
     }
-    
+
     int copy_changes_to_array_mode_number = 0;                                          // Signifies the mode for the array release, in this case 
                                                                                         // setting the mode to 0, which corresponds to copying back 
                                                                                         // all of the changes we made in arr_ptrs to img_java, and 
                                                                                         // then freeing arr_ptrs, when Release...() is called below
-                                                                                        
-    env->ReleaseDoubleArrayElements(java_output_reference, java_output_values, copy_changes_to_array_mode_number);     // Copying back arr_ptrs to 
-                                                                                                                       // img_java to update changes
-}
-
-
-JNIEXPORT jint JNICALL Java_Main_generateFrame(JNIEnv* env, jobject thisObject) {
-    run();
-    convert_image_to_java_array(env);
-    return 0;
-}
-
-
-JNIEXPORT jdoubleArray JNICALL Java_Main_initializeOutput(JNIEnv* env, jobject thisObject, jint _width, jint _height) {
-    width = _width;
-    height = _height;
-    int num_pixels = width * height;
-    int num_color_values = num_pixels * 3;
-
-    jdoubleArray img_java = env->NewDoubleArray(num_color_values);
-
-    // Creating a usable shallow copy of the img_java array as a jdouble pointer, and filling it with the color values calculated by the GPU to send 
-    // back to the Java host program to be displayed
-    java_output_reference = img_java;
-
-    initialize_and_copy_parameters_to_GPU();
-    return java_output_reference;
+    env->ReleaseDoubleArrayElements(img_java, arr_ptrs, copy_changes_to_array_mode_number);     // Copying back arr_ptrs to img_java to update changes
+    return img_java;
 }
