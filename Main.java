@@ -105,13 +105,13 @@ public class Main {
         JPanel panel = createPanel(frame);
 
         // Note: DO NOT PUT THIS IN A LOOP OR TIMER WITHOUT MAKING SOME SORT OF TERMINATION SAFETY!! THE GPU CAN CRASH WHEN TERMINATING PREMATURELY!!
-        //for (int i = 0; i < 100; i++) {
-        output = new Main().test(width, height);
+        for (int i = 0; i < 100; i++) {
+            output = new Main().test(width, height);
         // for (double color_value : output) {
         //     System.out.println(color_value);
         // }
             panel.repaint();
-        //}
+        }
 
         System.out.println("\nProgram finished!");
     }
