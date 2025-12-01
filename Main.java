@@ -101,16 +101,16 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("Running!");
-        // JFrame frame = createFrame(width, height);
-        // JPanel panel = createPanel(frame);
+        JFrame frame = createFrame(width, height);
+        JPanel panel = createPanel(frame);
 
         // Note: DO NOT PUT THIS IN A LOOP OR TIMER WITHOUT MAKING SOME SORT OF TERMINATION SAFETY!! THE GPU CAN CRASH WHEN TERMINATING PREMATURELY!!
         //for (int i = 0; i < 100; i++) {
-        new Main().test(width, height);
+        output = new Main().test(width, height);
         // for (double color_value : output) {
         //     System.out.println(color_value);
         // }
-            // panel.repaint();
+            panel.repaint();
         //}
 
         System.out.println("\nProgram finished!");

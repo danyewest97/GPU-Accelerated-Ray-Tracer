@@ -222,7 +222,7 @@ void run_test_kernel(int iterations) {
 // a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
 // on the kernel
 
-color** run(int width, int height)
+color* run(int width, int height)
 {
     // Kind of a hack, but see note below -- HIP takes a very long time to run the first kernel, but not the ones run after it, so I am including this
     // call to an empty kernel to "initialize" HIP so that the timing for the test_kernel kernel is not offset for debugging/timing purposes
@@ -291,47 +291,42 @@ color** run(int width, int height)
 
     hipDeviceReset();
 
-    // return result;
-    return NULL;
+    return result;
 }
 
 
 
 
 JNIEXPORT jdoubleArray JNICALL Java_Main_test(JNIEnv* env, jobject thisObject, jint width, jint height) {
-    run(width, height);
+    color* img = run(width, height);
 
-    // color** img = run(width, height);
+    int num_pixels = width * height;
+    int num_colors = num_pixels * 3;
+    jdoubleArray img_java = env->NewDoubleArray(num_colors);
 
-    // int num_pixels = width * height;
-    // int num_colors = num_pixels * 3;
-    // jdoubleArray img_java = env.NewDoubleArray(num_colors);
+    // Creating a usable shallow copy of the img_java array as a jdouble pointer, and filling it with the color values calculated by the GPU to send 
+    // back to the Java host program to be displayed
+    jboolean is_copy[1] = {JNI_FALSE};
+    jdouble* arr_ptrs = env->GetDoubleArrayElements(img_java, is_copy);              // Getting the img_out jdoubleArray object as a C++ array
+    for (int i = 0; i < num_pixels; i++) {
+        // Taking the color values from each pixel
+        color curr_color = img[i];
+        double r = curr_color.r;
+        double g = curr_color.g;
+        double b = curr_color.b;
 
-    // // Creating a usable shallow copy of the img_java array as a jdouble pointer, and filling it with the color values calculated by the GPU to send 
-    // // back to the Java host program to be displayed
-    // jboolean* is_copy_ptr = new jboolean[1];
-    // *is_copy_ptr = JNI_FALSE;
-    // jdouble* arr_ptrs = env.GetDoubleArrayElements(img_java, is_copy_ptr);              // Getting the img_out jdoubleArray object as a C++ array
-    // for (int i = 0; i < num_pixels; i++) {
-    //     // Taking the color values from each pixel
-    //     color* curr_color = img[i];
-    //     double r = *curr_color.r;
-    //     double g = *curr_color.g;
-    //     double b = *curr_color.b;
+        int arr_idx = i * 3;
 
-    //     int arr_idx = i * 3;
+        // Copying the color values to the arr_ptrs array (jdouble == double, basically, so we don't need to convert manually at all)
+        arr_ptrs[arr_idx] = r;
+        arr_ptrs[arr_idx + 1] = g;
+        arr_ptrs[arr_idx + 2] = b;
+    }
 
-    //     // Copying the color values to the arr_ptrs array (jdouble == double, basically, so we don't need to convert manually at all)
-    //     arr_ptrs[arr_idx] = r;
-    //     arr_ptrs[arr_idx + 1] = g;
-    //     arr_ptrs[arr_idx + 2] = b;
-    // }
-
-    // int copy_changes_to_array_mode_number = 0;                                          // Signifies the mode for the array release, in this case 
-    //                                                                                     // setting the mode to 0, which corresponds to copying back 
-    //                                                                                     // all of the changes we made in arr_ptrs to img_java, and 
-    //                                                                                     // then freeing arr_ptrs, when Release...() is called below
-    // env.ReleaseDoubleArrayElements(img_java, arr_ptrs, copy_changes_to_array_mode_number);     // Copying back arr_ptrs to img_java to update changes
-    // return img_java;
-    return NULL;
+    int copy_changes_to_array_mode_number = 0;                                          // Signifies the mode for the array release, in this case 
+                                                                                        // setting the mode to 0, which corresponds to copying back 
+                                                                                        // all of the changes we made in arr_ptrs to img_java, and 
+                                                                                        // then freeing arr_ptrs, when Release...() is called below
+    env->ReleaseDoubleArrayElements(img_java, arr_ptrs, copy_changes_to_array_mode_number);     // Copying back arr_ptrs to img_java to update changes
+    return img_java;
 }
