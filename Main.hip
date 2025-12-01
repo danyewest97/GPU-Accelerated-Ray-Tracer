@@ -182,71 +182,13 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
     printf("test kernel finished\n");
 }
 
-
-__global__ void initialization() {}
-
-
-// Runs the test kernel iterations times and spits out the average time per iteration, in nanoseconds
-// Needs to be updated
-void run_test_kernel(int iterations) {
-    int* times = new int[iterations];                                                   // An array to store the results of the test_kernel running 
-                                                                                        // multiple times, to take the average time
-    for (int i = iterations; i >= 0; i--) {
-        auto start = std::chrono::high_resolution_clock::now();                         // For timing, to see how long the test function takes to run
-        
-        //test_kernel<<<
-        //    dim3(1),
-        //    dim3(1),
-        //    0,
-        //    hipStreamDefault
-        //>>>(new color[1]);
-        
-        // Wait on all active streams on the current device. VERY NECESSARY
-        hipDeviceSynchronize();
-        auto finish = std::chrono::high_resolution_clock::now();
-        //std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "ns\n";
-        if (i < iterations) {           // Throwing out the first time because it still seems to have some baseline delay before running ¯\_(ツ)_/¯
-            times[i] = std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count();
-        }
-    }
-    
-    int sum = 0;
-    for (int i = 0; i < iterations; i++) {
-        sum += times[i];
-    }
-    printf("%i\n", sum / iterations);
-}
-
-
 // Important note: not sure how much overhead variable creation and logic happening inside the kernel is adding, because I am not just sending
 // a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
 // on the kernel
 
 color* run(int width, int height)
 {
-    // Kind of a hack, but see note below -- HIP takes a very long time to run the first kernel, but not the ones run after it, so I am including this
-    // call to an empty kernel to "initialize" HIP so that the timing for the test_kernel kernel is not offset for debugging/timing purposes
-    // initialization<<<
-    //     dim3(1),
-    //     dim3(1),
-    //     0,
-    //     hipStreamDefault
-    // >>>();
-    // hipDeviceSynchronize();
-
-    // Note: For some reason, it seems that whenever dynamically allocating memory on the GPU (i.e. with "new"), it adds a baseline ~13 milliseconds
-    // to the runtime -- NOT 13 milliseconds per allocation, but 13 milliseconds no matter the amount of allocations happening, if there is at least
-    // one allocation.
-    // In other words, if you don't allocate anything dynamically, the runtime stays low, but as soon as you make even a bool* with a single bit of 
-    // memory using the "new" operator, runtime jumps up by 13 ms, and it stays that way no matter how much more memory you allocate.
-    // ALSO: When running a kernel multiple times in a for-loop, the base runtime is around 500 (!!) ms, even running an empty kernel. However, I 
-    // think this is just an "initialization" period that HIP needs to start communicating with the GPU, or something similar, because it isn't there 
-    // for further runs of the same kernel -- only the first run.
-    
-    //run_test_kernel(1);
-    
-
-    // Another note: I have discovered that structs can, in fact, be passed by value to the GPU even if they contain other structs as members. 
+    // Note: I have discovered that structs can, in fact, be passed by value to the GPU even if they contain other structs as members. 
     // Would've saved me a WHOLE lot of time if I had realized this earlier
 
     // The number of pixels and size of our output image
