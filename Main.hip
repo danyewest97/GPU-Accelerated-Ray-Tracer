@@ -12,7 +12,6 @@
 // Custom/local library files
 #include "main_structs.cpp" // Includes all of the required main structs and their constructors, plus some methods for them
 // #include "specific_structs.cpp" // Includes all of the required more-specific structs and their constructors, plus some methods for them
-// #include "gpu_copying.cpp" // Includes all of the required functions for copying structs AND THEIR MEMBERS*** over to the GPU
 
 // #include "arrays.cpp" // Includes all of the required structs and their constructors, plus some methods for them
 // NOTE: Convention will be to use custom-made array types (in arrays.cpp) for ALL arrays, and only using pointers when the pointer is pointing to a 
@@ -37,62 +36,10 @@ __device__ void matrix_multiplication(double* matrix, double* vector, double* ou
 }
 
 
-// __global__ 
-
-
 // Oh yeah, baby... this is where the magic happens
 __global__ void trace_ray(ray* primary_ray, triangle* triangles, color* output_color) {
     
 }
-
-// // Takes the given camera and image dimensions and generates the corresponding primary/camera rays for them
-// __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int pixel_x, int pixel_y) {
-//     vector cam_origin = curr_cam.origin;
-//     vector cam_normal = curr_cam.rotation;
-//     int width = img_dim.width;
-//     int height = img_dim.height;
-
-//     // TODO: Confirm that rays need to be offset? Or should they just come directly from the camera origin with no offset? I think having an offset is 
-//     // correct
-//     // Note: may need optimizations for greater performance -- and either offload to CPU or do this in parallel (make new kernel for this?)
-//     double passthrough_plane_distance = curr_cam.fov_scale;              // Corresponds to the FOV scale of the camera (vertical and horizontal FOV 
-//     // values depend on the width and height of the camera), this is my own 
-//     // method for generating camera rays: imagine a plane that is fov_scale 
-//     // units from the camera pinhole/aperture, and we are drawing a ray to the 
-//     // centers of each of the cells on this plane -- the further away this 
-//     // plane gets, the more clustered the rays are, so the smaller the FOV, 
-//     // and vice versa for when the plane gets closer to the camera.
-//     // I chose to do it this way because it is very intuitive to me and 
-//     // incredibly easy to implement, since no rotation is involved
-    
-//     double x = (-(double) (width) / 2) + pixel_x + 0.5;
-//     double y = (-(double) (height) / 2) + pixel_y + 0.5;
-//     vector true_origin(0, 0, 0);                              // We will initially draw rays originating from (0, 0, 0), then translate 
-//     // and rotate them according to the camera's position
-//     vector ray_direction(x, y, passthrough_plane_distance);      // Adding a 0.5 unit offset to position rays into the middle of each
-//                                                                                 // pixel, instead of the top-right corner without the offset
-    
-    
-//     ray curr_ray(true_origin, ray_direction);                    // Creating the initial ray, not yet conformed to the camera's orientation
-    
-//     cam_origin.add(curr_ray.origin);                                      // Orienting the ray to be lined up properly with the camera (translating 
-//     // to the camera's origin)
-    
-//     // TODO: Make this into one operation, by precalculating the single matrix needed for all three rotations and only using that matrix
-//     //curr_ray.direction.rotate_x(true_origin, *cam_normal.x);              // Rotating the ray to face the same direction as the camera -- using 
-//                                                                             // true_origin instead of cam_origin because the direction of the ray 
-//                                                                             // determines where it points from its origin, so it is not 
-//                                                                             // location-dependent and should therefore be rotated about (0, 0, 0)
-//     //curr_ray.direction.rotate_y(true_origin, *cam_normal.y);
-//     //curr_ray.direction.rotate_z(true_origin, *cam_normal.z);
-//     curr_ray.direction.normalize();                                         // Normalizing the ray's direction so that distances returned from intersection methods will be 
-//                                                                             // absolute and not scaled by the ray direction's length (the t-value, or distance, returned from the 
-//                                                                             // ray-plane and ray-triangle intersection methods is dependent upon the ray direction's length, so if 
-//                                                                             // that length is 1, the t-value returned will be the same as the Euclidean distance from the ray's 
-//                                                                             // origin to the intersection point)
-
-//     return curr_ray;
-// }
 
 
 // Note from self: switch to camera at (0, 0, 0) with translation (like KSA and BRUTAL) instead of translating the camera itself??
@@ -135,12 +82,12 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
     // to the camera's origin)
     
     // TODO: Make this into one operation, by precalculating the single matrix needed for all three rotations and only using that matrix
-    //curr_ray.direction.rotate_x(true_origin, *cam_normal.x);              // Rotating the ray to face the same direction as the camera -- using 
-                                                                            // true_origin instead of cam_origin because the direction of the ray 
-                                                                            // determines where it points from its origin, so it is not 
-                                                                            // location-dependent and should therefore be rotated about (0, 0, 0)
-    //curr_ray.direction.rotate_y(true_origin, *cam_normal.y);
-    //curr_ray.direction.rotate_z(true_origin, *cam_normal.z);
+    curr_ray.direction.rotate_x(true_origin, cam_normal.x);              // Rotating the ray to face the same direction as the camera -- using 
+                                                                            true_origin instead of cam_origin because the direction of the ray 
+                                                                            determines where it points from its origin, so it is not 
+                                                                            location-dependent and should therefore be rotated about (0, 0, 0)
+    curr_ray.direction.rotate_y(true_origin, cam_normal.y);
+    curr_ray.direction.rotate_z(true_origin, cam_normal.z);
     curr_ray.direction.normalize();                                         // Normalizing the ray's direction so that distances returned from intersection methods will be 
                                                                             // absolute and not scaled by the ray direction's length (the t-value, or distance, returned from the 
                                                                             // ray-plane and ray-triangle intersection methods is dependent upon the ray direction's length, so if 
@@ -150,10 +97,6 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
     return curr_ray;
 }
 
-
-    
-
-// __global__ void test_kernel(color** img_out, camera cam, dimensions img_dimensions, triangle* triangles, int num_tris, int start_index, int end_index) {
 
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
