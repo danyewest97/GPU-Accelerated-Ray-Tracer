@@ -110,6 +110,11 @@ public class Main {
         // for (double color_value : output) {
         //     System.out.println(color_value);
         // }
+            try {
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                
+            }
             panel.repaint();
         }
 
