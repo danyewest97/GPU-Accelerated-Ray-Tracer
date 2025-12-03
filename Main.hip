@@ -83,9 +83,9 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
     
     // TODO: Make this into one operation, by precalculating the single matrix needed for all three rotations and only using that matrix
     curr_ray.direction.rotate_x(true_origin, cam_normal.x);              // Rotating the ray to face the same direction as the camera -- using 
-                                                                            true_origin instead of cam_origin because the direction of the ray 
-                                                                            determines where it points from its origin, so it is not 
-                                                                            location-dependent and should therefore be rotated about (0, 0, 0)
+                                                                            // true_origin instead of cam_origin because the direction of the ray 
+                                                                            // determines where it points from its origin, so it is not 
+                                                                            // location-dependent and should therefore be rotated about (0, 0, 0)
     curr_ray.direction.rotate_y(true_origin, cam_normal.y);
     curr_ray.direction.rotate_z(true_origin, cam_normal.z);
     curr_ray.direction.normalize();                                         // Normalizing the ray's direction so that distances returned from intersection methods will be 
@@ -100,12 +100,19 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
 
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
-__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, int num_tris, int start_index, int end_index) {
-    // int global_index = threadIdx.x + blockIdx.x * blockDim.x;
-    printf("test kernel started\n");
+__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, int num_tris, int num_pixels, int num_threads) {
+    int global_index = threadIdx.x + blockIdx.x * blockDim.x;
+    // printf("test kernel started\n");
 
+    while (global_index < num_pixels) {
+        // Creating coalesced memory reads (where thread 1 reads index 1, thread 2 index 2, thread 1 index 3, thread 2 index 4, etc) by starting 
+        // with the global index of the thread and adding num_threads each time we calculate a pixel, to offset memory reads so that they are 
+        // coalesced and faster (see here: https://stackoverflow.com/questions/5041328/in-cuda-what-is-memory-coalescing-and-how-is-it-achieved)
+        // Essentially this means that memory accesses only occur on addresses adjacent to previous memory accesses, to increase memory speed
+        
+        int i = global_index;
+        global_index += num_threads;
 
-    for (int i = start_index; i < end_index; i++) {
         ray primary_ray = generate_camera_ray(cam, img_dimensions, i);
         bool has_an_intersection[1] = {false};
         for (int j = 0; j < num_tris; j++) {
@@ -116,14 +123,19 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
             has_an_intersection[0] |= has_intersection[0];
         }
 
+        __syncthreads();
         if (has_an_intersection[0]) {
-            img_out[i] = color(1, 1, 1);
+            color white(1, 1, 1);
+            img_out[i] = white;                                 // VERY slow, unsure why or how to solve but needs to be optimized
         }
     }
     
 
-    printf("test kernel finished\n");
+    // printf("test kernel finished\n");
 }
+
+
+__global__ void initialize() {};
 
 // Important note: not sure how much overhead variable creation and logic happening inside the kernel is adding, because I am not just sending
 // a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
@@ -131,6 +143,8 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
 
 color* run(int width, int height)
 {
+    initialize<<<1, 1>>>();
+
     // Note: I have discovered that structs can, in fact, be passed by value to the GPU even if they contain other structs as members. 
     // Would've saved me a WHOLE lot of time if I had realized this earlier
 
@@ -163,12 +177,19 @@ color* run(int width, int height)
     hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
     
     
-    // Starting the kernel
-    test_kernel<<<1, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, 0, num_pixels);               // Start index is inclusive, end index is exclusive
+    auto start = std::chrono::high_resolution_clock::now();
 
+    int num_threads = 400;
+
+    // Starting the kernel
+    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
+    
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "\n";
+    printf("frame");
     
     // Getting our final result from the GPU to the CPU
     color* result = new color[img_size];

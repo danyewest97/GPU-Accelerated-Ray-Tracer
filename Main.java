@@ -10,8 +10,8 @@ import java.awt.image.*;
 import javax.swing.*;
 
 public class Main {
-    public static int width = 40;
-    public static int height = 40;
+    public static int width = 400;
+    public static int height = 400;
     public static double[] output = null;
     public native double[] test(int width, int height);                // Declaring a native function name -- native = from a dll/other coding 
                                                                        // language
@@ -110,11 +110,14 @@ public class Main {
         // for (double color_value : output) {
         //     System.out.println(color_value);
         // }
-            try {
-                Thread.sleep(1000);
-            } catch (Exception e) {
+
+
+
+            // try {
+            //     Thread.sleep(1000);
+            // } catch (Exception e) {
                 
-            }
+            // }
             panel.repaint();
         }
 
