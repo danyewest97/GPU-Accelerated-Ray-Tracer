@@ -11,7 +11,7 @@
 
 // Custom/local library files
 #include "main_structs.cpp" // Includes all of the required main structs and their constructors, plus some methods for them
-// #include "specific_structs.cpp" // Includes all of the required more-specific structs and their constructors, plus some methods for them
+#include "specific_structs.cpp" // Includes all of the required more-specific structs and their constructors, plus some methods for them
 
 // #include "arrays.cpp" // Includes all of the required structs and their constructors, plus some methods for them
 // NOTE: Convention will be to use custom-made array types (in arrays.cpp) for ALL arrays, and only using pointers when the pointer is pointing to a 
@@ -143,7 +143,7 @@ __global__ void initialize() {};
 
 color* run(int width, int height)
 {
-    initialize<<<1, 1>>>();
+    // initialize<<<1, 1>>>();
 
     // Note: I have discovered that structs can, in fact, be passed by value to the GPU even if they contain other structs as members. 
     // Would've saved me a WHOLE lot of time if I had realized this earlier
