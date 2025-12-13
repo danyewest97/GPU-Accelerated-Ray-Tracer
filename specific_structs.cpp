@@ -116,72 +116,66 @@ bounding_box generate_bounding_box(triangle tri) {
 struct box_node;
 bounding_box generate_bounding_box(box_node node);
 
-// A single member of a binary tree of bounding boxes used to recursively search through boxes when performing ray-triangle intersection
+// A single member of an octree of bounding boxes used to recursively search through boxes when performing ray-triangle intersection
 struct box_node {
     bounding_box box;                   // The box that this node contains
-    // Each node has up to two child nodes and a parent node
+    // Each node has up to eight child nodes and a parent node
     box_node* parent;
-    box_node* child1;
-    box_node* child2;
-    int num_children;
+    int num_children = 8;
+    box_node* children = new box_node[num_children];
     
 
     box_node() {}
 
-    // Constructor for a box node with two children
-    box_node(box_node* _child1, box_node* _child2) {
-        num_children = 2;
-        child1 = _child1;
-        child2 = _child2;
-        
-        // Setting this box_node as the parent for its children
-        child1->parent = this;
-        child2->parent = this;
-
-        // box = generate_bounding_box(this);
-    }
-
-    // Constructor for a box node with only a single child
-    box_node(box_node* _child1) {
-        num_children = 1;
-        child1 = _child1;
-
-        // Setting this box_node as the parent for its children
-        child1->parent = this;
-
-        box = generate_bounding_box(this);
-    }
-
-    // Constructor for a box node with no children
+    // Constructor for a base box node node with no children -- a "leaf" in the tree of nodes
     box_node(bounding_box _box) {
         num_children = 0;
         box = _box;
+    }
+
+    ~box_node() {
+        delete[] children;
     }
 };
 
 
 // Returns a bounding box around the two children of the given box_node
 bounding_box generate_bounding_box(box_node node) {
-    if (node.num_children == 0) return node.box;
-    if (node.num_children == 1) return node.child1->box;
+    int num_children = node.num_children;
+    if (num_children == 0) return node.box;
 
-    // Note: May need to simplify what is a pointer and what is not, because this... looks horrendous with the arrows and dots interchanging
-    triangle tri1 = *(node.child1->box.tri);
-    triangle tri2 = *(node.child2->box.tri);
+    int num_values_per_child = 3;
+    int num_raw_values = num_children * num_values_per_child;
+    double* x_values = new double[num_raw_values];
+    double* y_values = new double[num_raw_values];
+    double* z_values = new double[num_raw_values];
 
-    double x_values[6] = {tri1.a.x, tri1.b.x, tri1.c.x,
-                        tri2.a.x, tri2.b.x, tri2.c.x};
-    double y_values[6] = {tri1.a.y, tri1.b.y, tri1.c.y,
-                        tri2.a.y, tri2.b.y, tri2.c.y};
-    double z_values[6] = {tri1.a.z, tri1.b.z, tri1.c.z,
-                        tri2.a.z, tri2.b.z, tri2.c.z};
+    for (int i = 0; i < num_children; i++) {
+        triangle* curr_tri = node.children[i].box.tri;
+
+        int num_values_per_tri = 3;
+        int value_idx = i * num_values_per_tri;
+
+        x_values[value_idx] = curr_tri.a.x;
+        x_values[value_idx + 1] = curr_tri.b.x;
+        x_values[value_idx + 2] = curr_tri.c.x;
+
+        y_values[value_idx] = curr_tri.a.y;
+        y_values[value_idx + 1] = curr_tri.b.y;
+        y_values[value_idx + 2] = curr_tri.c.y;
+
+        z_values[value_idx] = curr_tri.a.z;
+        z_values[value_idx + 1] = curr_tri.b.z;
+        z_values[value_idx + 2] = curr_tri.c.z;
+    }
+
 
     // Manually finding the minimum and maximum x, y, and z values to create a bounding box around the given triangle
     double min_x = x_values[0];
     double min_y = y_values[0];
     double min_z = z_values[0];
 
-    for (int i = 1; i < 6; i++) {
+    for (int i = 1; i < num_raw_values; i++) {
         if (x_values[i] < min_x) min_x = x_values[i];
         if (y_values[i] < min_y) min_y = y_values[i];
         if (z_values[i] < min_z) min_z = z_values[i];
@@ -193,7 +187,7 @@ bounding_box generate_bounding_box(box_node node) {
     double max_z = z_values[0];
 
 
-    for (int i = 1; i < 6; i++) {
+    for (int i = 1; i < num_raw_values; i++) {
         if (x_values[i] > max_x) max_x = x_values[i];
         if (y_values[i] > max_y) max_y = y_values[i];
         if (z_values[i] > max_z) max_z = z_values[i];
@@ -206,12 +200,118 @@ bounding_box generate_bounding_box(box_node node) {
 
 
 
-// Generates a bounding-box tree using the given triangle array
-// Very inefficient until I think up a better solution, but since this is only really going to run once (for now) on a small set of triangles (for 
-// now) it's ok -- this is the simplest way I can think of doing this, and I'd like to solve it on my own
-box_node generate_bounding_box_tree(triangle* array, int num_tris) {
+struct centroid {
+    vector* center;
+    triangle* parent;
+
+    centroid() {}
+
+    centroid(vector* _center, triangle* _parent) {
+        center = _center;
+        parent = _parent;
+    }
+};
+
+// Recursively creates a child bounding_box node taking the given parent node
+// The search quadrant defines which direction of the center point we are looking for triangles (like the quadrants of a 2D graph but in 3D)
+// Basically we look at all of the centroids in the given direction of the centerpoint and generate a bounding-box tree for them recursively.
+// Search quadrant can be 0-7, which is which doesn't really matter because all will be called consecutively any time this function is in use
+// (Octant == quadrant but with 8 instead of 4, i.e. in 2D vs. 3D, where an intersection of 3 planes makes 8 regions as opposed to 4 with 2 lines)
+box_node generate_child_node(box_node* parent, vector centerpoint, int search_octant, centroid* centroids, int num_search_tris) {
+    // Breaking out of our recursion, aka the base case where we have 8 or less centroids/triangles left in the octant and we return a node with the 
+    // bounding boxes around each triangle as its children
+    if (num_search_tris <= 8) {
+        box_node result();
+        result.parent = parent;
+        for (int i = 0; i < num_search_tris; i++) {
+            triangle curr_tri = *(centroids[i].parent);
+            bounding_box tri_box = generate_bounding_box(curr_tri);
+            box_node single_tri_node(tri_box);
+            result.children[i] = single_tri_node;
+        }
+        return result;
+    }
+
+
+    vector search_direction;
+
+    if (search_octant == 0) search_direction = vector(1, 1, 1);
+    if (search_octant == 1) search_direction = vector(1, 1, -1);
+    if (search_octant == 2) search_direction = vector(1, -1, 1);
+    if (search_octant == 3) search_direction = vector(1, -1, -1);
+    if (search_octant == 4) search_direction = vector(-1, 1, 1);
+    if (search_octant == 5) search_direction = vector(-1, 1, -1);
+    if (search_octant == 6) search_direction = vector(-1, -1, 1);
+    if (search_octant == 7) search_direction = vector(-1, -1, -1);
+
+    vector curr_octant_centerpoint(0, 0, 0);
+    double* contained_centroid_indices = new double[num_search_tris];
+    int num_centroids_contained = 0;
+    for (int i = 0; i < num_search_tris; i++) {
+        centroid curr_centroid = centroids[i];
+        vector curr_centroid_position = curr_centroid.center;
+        double x = curr_centroid_position.x * search_direction.x;
+        double y = curr_centroid_position.y * search_direction.y;
+        double z = curr_centroid_position.z * search_direction.z;
+        
+        if (x <= centerpoint.x && y <= centerpoint.y && z <= centerpoint.z) {
+            contained_centroid_indices[num_centroids_contained] = i;
+            num_centroids_contained++;
+            
+            curr_octant_centerpoint.add(curr_centroid_position);
+        }
+    }
     
+    curr_octant_centerpoint.mult(1.0 / num_centroids_contained);
+    
+    centroid* new_centroids = new centroid[num_centroids_contained];
+    for (int i = 0; i < num_centroids_contained; i++) {
+        int idx = contained_centroid_indices[i];
+        new_centroids[i] = centroids[idx];
+    }
+    
+    box_node result();
+    result.parent = parent;
+
+    // Creating a recursive sequence that goes through and further adds to the final tree
+    for (int i = 0; i < 8; i++) {
+        result.children[i] = generate_child_node(result, curr_octant_centerpoint, i, new_centroids, num_centroids_contained);
+    }
 
 
-    return NULL;
+    // Freeing memory so we don't get a memory leak
+    delete[] contained_centroid_indices;
+    delete[] new_centroids;
+
+    return result;
+}
+
+
+// Generates a bounding-box tree using the given triangle array
+// Probably inefficient, I can clean up later but I just need it to work for now, especially because this likely won't be a bottleneck anytime soon
+box_node generate_bounding_box_tree(triangle* tris, int num_tris) {
+    centroid* centroids = new centroid[num_tris];
+    for (int i = 0; i < num_tris; i++) {
+        triangle curr_tri = tris[i];
+        vector sum_of_vertices(curr_tri.a.x + curr_tri.b.x + curr_tri.c.x,
+                               curr_tri.a.y + curr_tri.b.y + curr_tri.c.y,
+                               curr_tri.a.z + curr_tri.b.z + curr_tri.c.z);
+        sum_of_vertices.mult(1.0 / 3);
+        centroids[i] = centroid(&sum_of_vertices, &curr_tri);
+    }
+
+    vector midpoint_of_all_vertices(0, 0, 0);
+    for (int i = 0; i < num_tris; i++) {
+        midpoint_of_all_vertices.add(centroids[i]);
+    }
+    midpoint_of_all_vertices.mult(1.0 / num_tris);
+
+    box_node root_node();
+    for (int i = 0; i < 8; i++) {
+        generate_child_node(root_node, midpoint_of_all_vertices, i, centroids, num_tris);
+    }
+
+
+
+    return root_node;
 }
