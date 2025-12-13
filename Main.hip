@@ -182,7 +182,7 @@ color* run(int width, int height)
     int num_threads = 400;
 
     // Starting the kernel
-    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    // test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
@@ -196,6 +196,12 @@ color* run(int width, int height)
     hipMemcpy(result, img_out, img_size, hipMemcpyDeviceToHost);
 
     hipDeviceReset();
+
+
+    bounding_box box1 = generate_bounding_box(test_tri_1);
+    box_node node1(box1);
+
+
 
     return result;
 }
