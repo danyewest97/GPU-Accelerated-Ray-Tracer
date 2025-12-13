@@ -294,25 +294,27 @@ box_node generate_bounding_box_tree(triangle* tris, int num_tris) {
     centroid* centroids = new centroid[num_tris];
     for (int i = 0; i < num_tris; i++) {
         triangle curr_tri = tris[i];
+
+        // TODO This is the problem line
         vector sum_of_vertices(curr_tri.a.x + curr_tri.b.x + curr_tri.c.x,
                                curr_tri.a.y + curr_tri.b.y + curr_tri.c.y,
                                curr_tri.a.z + curr_tri.b.z + curr_tri.c.z);
-        sum_of_vertices.mult(1.0 / 3);
-        centroids[i] = centroid(&sum_of_vertices, &curr_tri);
+        // sum_of_vertices.mult(1.0 / 3);
+        // centroids[i] = centroid(&sum_of_vertices, &curr_tri);
     }
 
-    vector midpoint_of_all_vertices(0, 0, 0);
-    for (int i = 0; i < num_tris; i++) {
-        centroid curr_centroid = centroids[i];
-        vector curr_centroid_position = *(curr_centroid.center);
-        midpoint_of_all_vertices.add(curr_centroid_position);
-    }
-    midpoint_of_all_vertices.mult(1.0 / num_tris);
+    // vector midpoint_of_all_vertices(0, 0, 0);
+    // for (int i = 0; i < num_tris; i++) {
+    //     centroid curr_centroid = centroids[i];
+    //     vector curr_centroid_position = *(curr_centroid.center);
+    //     midpoint_of_all_vertices.add(curr_centroid_position);
+    // }
+    // midpoint_of_all_vertices.mult(1.0 / num_tris);
 
     box_node root_node(8);
-    for (int i = 0; i < 8; i++) {
-        // generate_child_node(root_node, midpoint_of_all_vertices, i, centroids, num_tris);
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     // generate_child_node(root_node, midpoint_of_all_vertices, i, centroids, num_tris);
+    // }
 
 
 

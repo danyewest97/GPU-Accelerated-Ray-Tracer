@@ -198,8 +198,9 @@ color* run(int width, int height)
     hipDeviceReset();
 
 
-    bounding_box box1 = generate_bounding_box(test_tri_1);
-    box_node node1(box1);
+    // bounding_box box1 = generate_bounding_box(test_tri_1);
+    
+    box_node node1 = generate_bounding_box_tree(triangles, num_tris);
 
 
 
