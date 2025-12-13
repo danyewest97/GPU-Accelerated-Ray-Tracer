@@ -303,7 +303,7 @@ box_node generate_child_node(box_node* parent, vector centerpoint, int search_oc
 
 // Generates a bounding-box tree using the given triangle array
 // Probably inefficient, I can clean up later but I just need it to work for now, especially because this likely won't be a bottleneck anytime soon
-box_node* generate_bounding_box_tree(triangle* tris, int num_tris) {
+box_node generate_bounding_box_tree(triangle* tris, int num_tris) {
     centroid* centroids = new centroid[num_tris];
     for (int i = 0; i < num_tris; i++) {
         triangle curr_tri = tris[i];
@@ -323,9 +323,9 @@ box_node* generate_bounding_box_tree(triangle* tris, int num_tris) {
     }
     midpoint_of_all_vertices.mult(1.0 / num_tris);
 
-    box_node* root_node = new box_node(8);
+    box_node root_node(8);
     for (int i = 0; i < 8; i++) {
-        generate_child_node(root_node, midpoint_of_all_vertices, i, centroids, num_tris);
+        generate_child_node(&root_node, midpoint_of_all_vertices, i, centroids, num_tris);
     }
 
 
