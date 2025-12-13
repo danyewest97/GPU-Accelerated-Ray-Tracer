@@ -48,6 +48,13 @@ struct vector {
         z += v.z;
     }
 
+    // Multiplies this vector by the given value
+    __device__ __host__ void mult(double k) {
+        x *= k;
+        y *= k;
+        z *= k;
+    }
+
     // 3D vector rotation methods that rotate this around the given vector center by the given radians, on the respective axis
     __device__ __host__ void rotate_x(vector center, double radians) {
         double sine = sin(radians);
