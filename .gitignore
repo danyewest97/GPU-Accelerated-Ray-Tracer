@@ -4,5 +4,5 @@ native.lib
 native.dll
 GPU_Accelerated_Rasterizer.code-workspace
 
-
+*.log
 *.class

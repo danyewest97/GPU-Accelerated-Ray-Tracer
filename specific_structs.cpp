@@ -44,8 +44,8 @@ struct bounding_box {
 
     bounding_box() {}
 
-    bounding_box(triangle _tri, double _x_min, double _x_max, double _y_min, double _y_max, double _z_min, double _z_max) {
-        *tri = _tri;
+    bounding_box(triangle* _tri, double _x_min, double _x_max, double _y_min, double _y_max, double _z_min, double _z_max) {
+        tri = _tri;
         represents_single_triangle = true;
 
         x_min = _x_min;
@@ -104,7 +104,7 @@ bounding_box generate_bounding_box(triangle tri) {
     if (tri.c.z > max_z) max_z = tri.c.z;
 
 
-    bounding_box result(tri, min_x, max_x, min_y, max_y, min_z, max_z);
+    bounding_box result(&tri, min_x, max_x, min_y, max_y, min_z, max_z);
     return result;
 }
 
@@ -142,34 +142,31 @@ struct box_node {
 };
 
 
-// Returns a bounding box around the two children of the given box_node
+// Returns a bounding box around the children of the given box_node
 bounding_box generate_bounding_box(box_node node) {
     int num_children = node.num_children;
     if (num_children == 0) return node.box;
 
-    int num_values_per_child = 3;
+    int num_values_per_child = 2;
     int num_raw_values = num_children * num_values_per_child;
     double* x_values = new double[num_raw_values];
     double* y_values = new double[num_raw_values];
     double* z_values = new double[num_raw_values];
 
     for (int i = 0; i < num_children; i++) {
-        triangle curr_tri = *(node.children[i].box.tri);
+        bounding_box curr_box = node.children[i].box;
 
-        int num_values_per_tri = 3;
-        int value_idx = i * num_values_per_tri;
+        int num_values_per_box = 2;
+        int value_idx = i * num_values_per_box;
 
-        x_values[value_idx] = curr_tri.a.x;
-        x_values[value_idx + 1] = curr_tri.b.x;
-        x_values[value_idx + 2] = curr_tri.c.x;
+        x_values[value_idx] = curr_box.x_min;
+        x_values[value_idx + 1] = curr_box.x_max;
 
-        y_values[value_idx] = curr_tri.a.y;
-        y_values[value_idx + 1] = curr_tri.b.y;
-        y_values[value_idx + 2] = curr_tri.c.y;
+        y_values[value_idx] = curr_box.y_min;
+        y_values[value_idx + 1] = curr_box.y_max;
 
-        z_values[value_idx] = curr_tri.a.z;
-        z_values[value_idx + 1] = curr_tri.b.z;
-        z_values[value_idx + 2] = curr_tri.c.z;
+        z_values[value_idx] = curr_box.z_min;
+        z_values[value_idx + 1] = curr_box.z_max;
     }
 
 
@@ -227,11 +224,12 @@ box_node generate_child_node(box_node* parent, vector centerpoint, int search_oc
         box_node result(num_search_tris);
         result.parent = parent;
         for (int i = 0; i < num_search_tris; i++) {
-            // triangle curr_tri = *(centroids[i].parent);
-            // bounding_box tri_box = generate_bounding_box(curr_tri);
-            // box_node single_tri_node(tri_box);
-            // result.children[i] = single_tri_node;
+            triangle curr_tri = *(centroids[i].parent);
+            bounding_box tri_box = generate_bounding_box(curr_tri);
+            box_node single_tri_node(tri_box);
+            result.children[i] = single_tri_node;
         }
+        result.box = generate_bounding_box(result);
         return result;
     }
 
