@@ -226,7 +226,6 @@ box_node generate_child_node(box_node* parent, vector centerpoint, int search_oc
             result.children[i] = single_tri_node;
         }
         result.box = generate_bounding_box(result);
-        printf("debug");
         return result;
     }
     
