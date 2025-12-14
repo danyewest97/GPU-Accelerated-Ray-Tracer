@@ -119,7 +119,7 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
             triangle curr_tri = triangles[j];
             bool has_intersection[1] = {false};
             double t_out[1] = {0};
-            hit collision = inefficient_ray_triangle_intersection_t(primary_ray, triangles, num_tris);
+            hit collision = inefficient_ray_triangle_intersection_t(&primary_ray, triangles, num_tris);
             has_an_intersection[0] |= collision.has_intersection;
         }
 

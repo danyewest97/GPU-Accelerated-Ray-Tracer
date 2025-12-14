@@ -375,9 +375,9 @@ __device__ double ray_plane_intersection_t(ray r, plane p, bool* has_intersectio
 
 // Gets the 3D point from a ray at a given t value (where the ray equation is O + vt, where O is the ray origin and v is the ray's direction -- this
 // function just plugs in a given t and returns the 3D point that results from the equation)
-__device__ vector get_point_from_t(ray r, double t) {
-    vector origin = r.origin;
-    vector direction = r.direction;
+__device__ vector get_point_from_t(ray* r, double t) {
+    vector origin = r->origin;
+    vector direction = r->direction;
     vector result(origin.x + (direction.x * t),
                                origin.y + (direction.y * t),
                                origin.z + (direction.z * t));
@@ -396,10 +396,10 @@ __device__ vector get_point_from_t(ray r, double t) {
 // As of now, still using same algorithm as above then just doing bounds-checking to see if the intersection point we find is inside the triangle
 // With this method, however, we return the actual coordinates of the 3D collision point (if it exists) and we return the t value of the collision 
 // through the t_out argument
-__device__ vector ray_triangle_intersection_t(ray r, triangle t, bool* has_intersection, double* t_out) {
-    plane p = t.surface_plane;
+__device__ vector ray_triangle_intersection_t(ray* r, triangle* t, bool* has_intersection, double* t_out) {
+    plane p = t->surface_plane;
     
-    if (r.direction.dot(p.normal) == 0) {
+    if (r->direction.dot(p.normal) == 0) {
         has_intersection[0] = false;
         vector result(0, 0, 0);
         t_out[0] = 0;
@@ -411,13 +411,13 @@ __device__ vector ray_triangle_intersection_t(ray r, triangle t, bool* has_inter
     double c = p.normal.z;
     double d = p.d;
 
-    double x0 = r.origin.x;
-    double y0 = r.origin.y;
-    double z0 = r.origin.z;
+    double x0 = r->origin.x;
+    double y0 = r->origin.y;
+    double z0 = r->origin.z;
     
-    double xt = r.direction.x;
-    double yt = r.direction.y;
-    double zt = r.direction.z;
+    double xt = r->direction.x;
+    double yt = r->direction.y;
+    double zt = r->direction.z;
 
     
     double left = (a * xt) + (b * yt) + (c * zt);             // The total t-values added up in the ray-plane equation being solved -- this 
@@ -434,12 +434,12 @@ __device__ vector ray_triangle_intersection_t(ray r, triangle t, bool* has_inter
     // Now we need to find the collision point's coordinates in 3D and 
     vector collision_point = get_point_from_t(r, t_out[0]);
 
-    double x1 = t.a.x;
-    double y1 = t.a.y;
-    double x2 = t.b.x;
-    double y2 = t.b.y;
-    double x3 = t.c.x;
-    double y3 = t.c.y;
+    double x1 = t->a.x;
+    double y1 = t->a.y;
+    double x2 = t->b.x;
+    double y2 = t->b.y;
+    double x3 = t->c.x;
+    double y3 = t->c.y;
     
     double i = collision_point.x;
     double j = collision_point.y;
@@ -458,7 +458,7 @@ __device__ vector ray_triangle_intersection_t(ray r, triangle t, bool* has_inter
 
 // Checks for a ray-triangle intersection given an array of triangles
 // THIS VERSION ONLY FOR A PERFORMANCE BASELINE -- USE THE ONE BELOW
-__device__ hit inefficient_ray_triangle_intersection_t(ray r, triangle* tris, int num_tris) {
+__device__ hit inefficient_ray_triangle_intersection_t(ray* r, triangle* tris, int num_tris) {
     double final_t_out;
     vector collision_point;
     triangle collision_tri;
@@ -469,7 +469,7 @@ __device__ hit inefficient_ray_triangle_intersection_t(ray r, triangle* tris, in
         double t_out = 0;
 
         triangle curr_tri = tris[i];
-        vector curr_hit = ray_triangle_intersection_t(r, curr_tri, &has_intersect, &t_out);
+        vector curr_hit = ray_triangle_intersection_t(r, &curr_tri, &has_intersect, &t_out);
 
         if (has_intersect && !has_intersection) {
             final_t_out = t_out;
@@ -491,6 +491,18 @@ __device__ hit inefficient_ray_triangle_intersection_t(ray r, triangle* tris, in
     } else {
         return hit();
     } 
+}
+
+
+__device__ bool ray_box_intersection(ray* r, bounding_box* box) {
+    bool x_collision = false;
+    bool y_collision = false;
+    bool z_collision = false;
+    vector& direction = r->direction;
+    
+    if (ray.direction.x != 0) {
+        double left = ray.direction.x * box->
+    }
 }
 
 
