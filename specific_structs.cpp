@@ -1,23 +1,6 @@
 // A library file with all of the required more-specific structs and their constructors, plus some methods to use on them -- Mostly structs that are 
 // only needed to couple certain specific datatypes together, without any methods to act on them
 
-// A hit class to hold all the necessary information about 
-struct hit {
-    triangle hit_triangle;
-    color hit_color;
-    vector hit_point;
-    double hit_distance;
-
-    __device__ hit() {}
-
-    __device__ hit(triangle _hit_triangle, color _hit_color, vector _hit_point, double _hit_distance) {
-        hit_triangle = _hit_triangle;
-        hit_color = _hit_color;
-        hit_point = _hit_point;
-        hit_distance = _hit_distance;
-    }
-};
-
 // A bounding box struct for creating bounding volume hierarchies (that partition space into volumes to speed up ray-triangle intersection calculation)
 // that holds the array index that correspond to the triangle contained within the bounding box
 // Basically, kind of like bounding boxes in rasterization: instead of looking at every triangle (or every pixel on screen in the case of 

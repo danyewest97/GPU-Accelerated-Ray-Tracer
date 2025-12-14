@@ -291,6 +291,26 @@ struct light {
 };
 
 
+// Simple wrapper class for returning a vector and triangle from the general ray_triangle_intersection_t() method that looks at an array of triangles
+struct hit {
+    triangle hit_triangle;
+    // color hit_color;
+    vector hit_point;
+    double hit_distance;
+    bool has_intersection = false;
+
+    __device__ hit() {}
+
+    __device__ hit(triangle _hit_triangle, vector _hit_point, double _hit_distance) {
+        hit_triangle = _hit_triangle;
+        // hit_color = _hit_color;
+        hit_point = _hit_point;
+        hit_distance = _hit_distance;
+        has_intersection = true;
+    }
+};
+
+
 // Checks if the point (i, j) is contained in the triangle defined by the points (x1, y1), (x2, y2), and (x3, y3) -- required dependency for
 // ray-triangle intersection method below.
 // Works by looking at the triangle in 2D (as if it had been orthogonally projected to a 2D plane) and seeing if the given point lies on the same side
@@ -436,6 +456,56 @@ __device__ vector ray_triangle_intersection_t(ray r, triangle t, bool* has_inter
 }
 
 
+// Checks for a ray-triangle intersection given an array of triangles
+// THIS VERSION ONLY FOR A PERFORMANCE BASELINE -- USE THE ONE BELOW
+__device__ hit inefficient_ray_triangle_intersection_t(ray r, triangle* tris, int num_tris) {
+    double final_t_out;
+    vector collision_point;
+    triangle collision_tri;
+    bool has_intersection = false;
+
+    for (int i = 0; i < num_tris; i++) {
+        bool has_intersect = false;
+        double t_out = 0;
+
+        triangle curr_tri = tris[i];
+        vector curr_hit = ray_triangle_intersection_t(r, curr_tri, &has_intersect, &t_out);
+
+        if (has_intersect && !has_intersection) {
+            final_t_out = t_out;
+            collision_tri = curr_tri;
+            collision_point = curr_hit;
+        } else if (has_intersect) {
+            if (t_out < final_t_out) {
+                final_t_out = t_out;
+                collision_tri = curr_tri;
+                collision_point = curr_hit;
+            }
+        }
+        
+        has_intersection |= has_intersect;
+    }
+
+    if (has_intersection) {
+        return hit(collision_tri, collision_point, final_t_out);
+    } else {
+        return hit();
+    } 
+}
+
+
+// Checks for a ray-triangle intersection given the root node of a tree of bounding boxes
+// __device__ vector ray_triangle_intersection_t(ray r, box_node root_node, bool* has_intersection, double* t_out) {
+
+// }
+
+
+// Checks for a ray-triangle intersection given an array of triangles and a given triangle to exclude from the search (i.e. if the ray bounced off a 
+// triangle, we don't want to count that triangle again or the ray could intersect with it twice in a row due to precision errors, causing weird 
+// artifacts)
+// __device__ vector ray_triangle_intersection_t(ray r, triangle* tris, bool* has_intersection, double* t_out) {
+
+// }
 
 
 // Print methods for debugging

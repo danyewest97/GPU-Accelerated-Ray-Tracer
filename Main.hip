@@ -119,8 +119,8 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
             triangle curr_tri = triangles[j];
             bool has_intersection[1] = {false};
             double t_out[1] = {0};
-            vector collision_point = ray_triangle_intersection_t(primary_ray, curr_tri, has_intersection, t_out);
-            has_an_intersection[0] |= has_intersection[0];
+            hit collision = inefficient_ray_triangle_intersection_t(primary_ray, triangles, num_tris);
+            has_an_intersection[0] |= collision.has_intersection;
         }
 
         __syncthreads();
@@ -163,13 +163,20 @@ color* run(int width, int height)
 
     dimensions img_dim(width, height);
 
-    int num_tris = 1;
+    int num_tris = 20;
     int size_of_triangles = num_tris * sizeof(triangle);
     triangle* triangles = new triangle[num_tris];
     
+    srand(time(0));                                             // Generating a pseudo-random seed depending on the time each iteration
     material placeholder_material(color(255, 255, 255), 1, 0, 0);
-    triangle test_tri_1(placeholder_material, vector(0, 0, 1), vector(10, 0, 1), vector(0, 10, 1));
-    triangles[0] = test_tri_1;
+    for (int i = 0; i < num_tris; i++) {
+        vector a((rand() % 101) - 50, (rand() % 101) - 50, 1);
+        vector b(a.x + (rand() % 31) - 15, a.y + (rand() % 31) - 15, 1);
+        vector c((rand() % 51) - 25, (rand() % 51) - 25, 1);
+
+        triangle test_tri_1(placeholder_material, a, b, c);
+        triangles[i] = test_tri_1;
+    }
 
     // Copying our triangle data to the GPU
     triangle* gpu_triangles;
@@ -182,10 +189,11 @@ color* run(int width, int height)
     int num_threads = 400;
 
     // Starting the kernel
-    // test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
+    box_node node1 = generate_bounding_box_tree(triangles, num_tris);
     
     auto finish = std::chrono::high_resolution_clock::now();
     std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "\n";
@@ -197,9 +205,6 @@ color* run(int width, int height)
 
     hipDeviceReset();
 
-
-
-    box_node node1 = generate_bounding_box_tree(triangles, num_tris);
 
 
 
