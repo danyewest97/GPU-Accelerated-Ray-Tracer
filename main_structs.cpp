@@ -291,7 +291,7 @@ struct light {
 };
 
 
-// Simple wrapper class for returning a vector and triangle from the general ray_triangle_intersection_t() method that looks at an array of triangles
+// Simple wrapper class for returning a vector and triangle from the general ray_triangle_intersection() method that looks at an array of triangles
 struct hit {
     triangle hit_triangle;
     // color hit_color;
@@ -375,9 +375,9 @@ __device__ double ray_plane_intersection_t(ray r, plane p, bool* has_intersectio
 
 // Gets the 3D point from a ray at a given t value (where the ray equation is O + vt, where O is the ray origin and v is the ray's direction -- this
 // function just plugs in a given t and returns the 3D point that results from the equation)
-__device__ vector get_point_from_t(ray* r, double t) {
-    vector origin = r->origin;
-    vector direction = r->direction;
+__device__ vector get_point_from_t(ray& r, double t) {
+    vector origin = r.origin;
+    vector direction = r.direction;
     vector result(origin.x + (direction.x * t),
                                origin.y + (direction.y * t),
                                origin.z + (direction.z * t));
@@ -396,14 +396,11 @@ __device__ vector get_point_from_t(ray* r, double t) {
 // As of now, still using same algorithm as above then just doing bounds-checking to see if the intersection point we find is inside the triangle
 // With this method, however, we return the actual coordinates of the 3D collision point (if it exists) and we return the t value of the collision 
 // through the t_out argument
-__device__ vector ray_triangle_intersection_t(ray* r, triangle* t, bool* has_intersection, double* t_out) {
-    plane p = t->surface_plane;
+__device__ hit ray_triangle_intersection(ray& r, triangle& t) {
+    plane p = t.surface_plane;
     
-    if (r->direction.dot(p.normal) == 0) {
-        has_intersection[0] = false;
-        vector result(0, 0, 0);
-        t_out[0] = 0;
-        return result;
+    if (r.direction.dot(p.normal) == 0) {
+        return hit();
     }
 
     double a = p.normal.x;
@@ -411,13 +408,13 @@ __device__ vector ray_triangle_intersection_t(ray* r, triangle* t, bool* has_int
     double c = p.normal.z;
     double d = p.d;
 
-    double x0 = r->origin.x;
-    double y0 = r->origin.y;
-    double z0 = r->origin.z;
+    double x0 = r.origin.x;
+    double y0 = r.origin.y;
+    double z0 = r.origin.z;
     
-    double xt = r->direction.x;
-    double yt = r->direction.y;
-    double zt = r->direction.z;
+    double xt = r.direction.x;
+    double yt = r.direction.y;
+    double zt = r.direction.z;
 
     
     double left = (a * xt) + (b * yt) + (c * zt);             // The total t-values added up in the ray-plane equation being solved -- this 
@@ -428,96 +425,66 @@ __device__ vector ray_triangle_intersection_t(ray* r, triangle* t, bool* has_int
                                                                         
 
 
-    t_out[0] = right / left;                                             // After the last step, the equation is something like c = kt, where c and k 
+    double t_out = right / left;                                             // After the last step, the equation is something like c = kt, where c and k 
                                                                         // are some given constants, and we need to isolate t so we divide both sides 
                                                                         // by k to get t = c / k
     // Now we need to find the collision point's coordinates in 3D and 
-    vector collision_point = get_point_from_t(r, t_out[0]);
+    vector collision_point = get_point_from_t(r, t_out);
 
-    double x1 = t->a.x;
-    double y1 = t->a.y;
-    double x2 = t->b.x;
-    double y2 = t->b.y;
-    double x3 = t->c.x;
-    double y3 = t->c.y;
+    double x1 = t.a.x;
+    double y1 = t.a.y;
+    double x2 = t.b.x;
+    double y2 = t.b.y;
+    double x3 = t.c.x;
+    double y3 = t.c.y;
     
     double i = collision_point.x;
     double j = collision_point.y;
 
-    has_intersection[0] = contains(i, j, x1, y1, x2, y2, x3, y3);
+    bool has_intersection = contains(i, j, x1, y1, x2, y2, x3, y3);
 
-    if (has_intersection[0]) {
-        return collision_point;
+    if (has_intersection) {
+        return hit(t, collision_point, t_out);
     } else {
-        vector result(0, 0, 0);
-        t_out[0] = 0;
-        return result;
+        return hit();
     }
 }
 
 
 // Checks for a ray-triangle intersection given an array of triangles
 // THIS VERSION ONLY FOR A PERFORMANCE BASELINE -- USE THE ONE BELOW
-__device__ hit inefficient_ray_triangle_intersection_t(ray* r, triangle* tris, int num_tris) {
-    double final_t_out;
-    vector collision_point;
-    triangle collision_tri;
-    bool has_intersection = false;
+__device__ hit inefficient_ray_triangle_intersection(ray& r, triangle* tris, int num_tris) {
+    hit closest_hit;
+    bool has_any_intersection = false;
 
     for (int i = 0; i < num_tris; i++) {
         bool has_intersect = false;
         double t_out = 0;
 
         triangle curr_tri = tris[i];
-        vector curr_hit = ray_triangle_intersection_t(r, &curr_tri, &has_intersect, &t_out);
+        hit curr_hit = ray_triangle_intersection(r, curr_tri);
 
-        if (has_intersect && !has_intersection) {
-            final_t_out = t_out;
-            collision_tri = curr_tri;
-            collision_point = curr_hit;
-        } else if (has_intersect) {
-            if (t_out < final_t_out) {
-                final_t_out = t_out;
-                collision_tri = curr_tri;
-                collision_point = curr_hit;
+        if (curr_hit.has_intersection && !has_any_intersection) {
+            if (curr_hit.hit_distance >= 0) {
+                closest_hit = curr_hit;
+            }
+        } else if (curr_hit.has_intersection) {
+            if (curr_hit.hit_distance >= 0 && curr_hit.hit_distance < closest_hit.hit_distance) {
+                closest_hit = curr_hit;
             }
         }
         
-        has_intersection |= has_intersect;
+        has_any_intersection |= curr_hit.has_intersection;
     }
 
-    if (has_intersection) {
-        return hit(collision_tri, collision_point, final_t_out);
+    if (has_any_intersection) {
+        return closest_hit;
     } else {
         return hit();
     } 
 }
 
 
-__device__ bool ray_box_intersection(ray* r, bounding_box* box) {
-    bool x_collision = false;
-    bool y_collision = false;
-    bool z_collision = false;
-    vector& direction = r->direction;
-    
-    if (ray.direction.x != 0) {
-        double left = ray.direction.x * box->
-    }
-}
-
-
-// Checks for a ray-triangle intersection given the root node of a tree of bounding boxes
-// __device__ vector ray_triangle_intersection_t(ray r, box_node root_node, bool* has_intersection, double* t_out) {
-
-// }
-
-
-// Checks for a ray-triangle intersection given an array of triangles and a given triangle to exclude from the search (i.e. if the ray bounced off a 
-// triangle, we don't want to count that triangle again or the ray could intersect with it twice in a row due to precision errors, causing weird 
-// artifacts)
-// __device__ vector ray_triangle_intersection_t(ray r, triangle* tris, bool* has_intersection, double* t_out) {
-
-// }
 
 
 // Print methods for debugging

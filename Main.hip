@@ -100,7 +100,7 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
 
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
-__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, int num_tris, int num_pixels, int num_threads) {
+__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, box_node root_node, int num_tris, int num_pixels, int num_threads) {
     int global_index = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("test kernel started\n");
 
@@ -119,7 +119,7 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
             triangle curr_tri = triangles[j];
             bool has_intersection[1] = {false};
             double t_out[1] = {0};
-            hit collision = inefficient_ray_triangle_intersection_t(&primary_ray, triangles, num_tris);
+            hit collision = ray_triangle_intersection(primary_ray, root_node);
             has_an_intersection[0] |= collision.has_intersection;
         }
 
@@ -183,13 +183,15 @@ color* run(int width, int height)
     hipMalloc(&gpu_triangles, size_of_triangles);
     hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
     
+    box_node root_node = generate_bounding_box_tree(triangles, num_tris);
+    root_node = prepare_box_node_for_gpu(root_node);
     
     auto start = std::chrono::high_resolution_clock::now();
 
     int num_threads = 400;
 
     // Starting the kernel
-    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, root_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
