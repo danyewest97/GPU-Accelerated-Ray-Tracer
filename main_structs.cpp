@@ -445,9 +445,8 @@ __device__ hit ray_triangle_intersection(ray& r, triangle& t) {
 
     if (has_intersection) {
         return hit(t, collision_point, t_out);
-    } else {
-        return hit();
     }
+    return hit();
 }
 
 

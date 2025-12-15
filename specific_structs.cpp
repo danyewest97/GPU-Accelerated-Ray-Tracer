@@ -27,7 +27,7 @@ struct bounding_box {
 
     bounding_box() {}
 
-    bounding_box(triangle& _tri, double _min_x, double _max_x, double _min_y, double _max_y, double _min_z, double _max_z) {
+    bounding_box(triangle _tri, double _min_x, double _max_x, double _min_y, double _max_y, double _min_z, double _max_z) {
         tri = _tri;
         represents_single_triangle = true;
 
@@ -54,7 +54,7 @@ struct bounding_box {
 
 
 // Returns a bounding box around the given triangle
-bounding_box generate_bounding_box(triangle tri) {
+bounding_box generate_bounding_box(triangle& tri) {
     // Manually finding the minimum and maximum x, y, and z values to create a bounding box around the given triangle
     double min_x = tri.a.x;
     double min_y = tri.a.y;
@@ -86,7 +86,6 @@ bounding_box generate_bounding_box(triangle tri) {
     if (tri.b.z > max_z) max_z = tri.b.z;
     if (tri.c.z > max_z) max_z = tri.c.z;
 
-
     bounding_box result(tri, min_x, max_x, min_y, max_y, min_z, max_z);
     return result;
 }
@@ -107,6 +106,16 @@ struct box_node {
 
     box_node() {}
 
+    // Copy constructor
+    // box_node(box_node& old_node) {
+    //     box = old_node.box;
+    //     num_children = old_node.num_children;
+    //     children = new box_node[num_children];
+    //     for (int i = 0; i < num_children; i++) {
+    //         children[i] = old_node.children[i];
+    //     }
+    // }
+
     box_node(int _num_children) {
         num_children = _num_children;
         children = new box_node[num_children];
@@ -120,32 +129,9 @@ struct box_node {
 };
 
 
-box_node& prepare_box_node_for_gpu(box_node& cpu_node) {
-    bool is_second_to_last_node = true;
-    for (int i = 0; i < cpu_node.num_children; i++) {
-        box_node& curr_child = cpu_node.children[i];
-        if (!curr_child.num_children == 0) {
-            is_second_to_last_node = false;
-            cpu_node.children[i] = prepare_box_node_for_gpu(curr_child);
-        }
-    }
-
-    if (is_second_to_last_node) {
-        int size = sizeof(box_node) * cpu_node.num_children;
-        box_node* gpu_children;
-        hipMalloc(&gpu_children, size);
-        hipMemcpy(&gpu_children, cpu_node.children, size, hipMemcpyHostToDevice);
-        cpu_node.children = gpu_children;
-        return cpu_node;
-    }
-
-    return cpu_node;
-}
-
-
 
 // Returns a bounding box around the children of the given box_node
-bounding_box generate_bounding_box(box_node node) {
+bounding_box generate_bounding_box(box_node& node) {
     int num_children = node.num_children;
     if (num_children == 0) return node.box;
 
@@ -188,6 +174,7 @@ bounding_box generate_bounding_box(box_node node) {
     double max_x = x_values[0];
     double max_y = y_values[0];
     double max_z = z_values[0];
+
     
     for (int i = 1; i < num_raw_values; i++) {
         if (x_values[i] > max_x) max_x = x_values[i];
@@ -297,8 +284,8 @@ box_node generate_child_node(vector centerpoint, int search_octant, centroid* ce
 
 
     // Freeing memory so we don't get a memory leak
-    delete[] contained_centroid_indices;
-    delete[] new_centroids;
+    // delete[] contained_centroid_indices;
+    // delete[] new_centroids;
 
     return result;
 }
@@ -306,7 +293,7 @@ box_node generate_child_node(vector centerpoint, int search_octant, centroid* ce
 
 // Generates a bounding-box tree using the given triangle array
 // Probably inefficient, I can clean up later but I just need it to work for now, especially because this likely won't be a bottleneck anytime soon
-box_node generate_bounding_box_tree(triangle* tris, int num_tris) {
+box_node* generate_bounding_box_tree(triangle* tris, int num_tris) {
     centroid* centroids = new centroid[num_tris];
     for (int i = 0; i < num_tris; i++) {
         triangle curr_tri = tris[i];
@@ -326,11 +313,11 @@ box_node generate_bounding_box_tree(triangle* tris, int num_tris) {
     }
     midpoint_of_all_vertices.mult(1.0 / num_tris);
 
-    box_node root_node(8);
+    box_node* root_node = new box_node(8);
     for (int i = 0; i < 8; i++) {
-        generate_child_node(midpoint_of_all_vertices, i, centroids, num_tris);
+        box_node child = generate_child_node(midpoint_of_all_vertices, i, centroids, num_tris);
+        root_node->children[i] = child;
     }
-
 
     return root_node;
 }
@@ -406,21 +393,21 @@ __device__ bool ray_box_intersection(ray& r, bounding_box& box) {
 
 
 // Checks for a ray-triangle intersection given the root node of a tree of bounding boxes
-__device__ hit ray_triangle_intersection(ray& r, box_node& root_node) {
+__device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
     vector& direction = r.direction;
     vector& origin = r.origin;
 
-    if (root_node.num_children == 0) {
-        hit tri_hit = ray_triangle_intersection(r, root_node.box.tri);
+    if (root_node->num_children == 0) {
+        hit tri_hit = ray_triangle_intersection(r, root_node->box.tri);
         return tri_hit;
     }
 
     hit closest_hit;
     bool has_any_intersection = false;
 
-    for (int i = 0; i < root_node.num_children; i++) {
-        box_node curr_child = root_node.children[i];
-        if (!ray_box_intersection(r, curr_child.box)) continue;
+    for (int i = 0; i < root_node->num_children; i++) {
+        box_node* curr_child = &(root_node->children[i]);
+        if (!ray_box_intersection(r, curr_child->box)) continue;
 
         hit curr_hit = ray_triangle_intersection(r, curr_child);
 
@@ -435,7 +422,10 @@ __device__ hit ray_triangle_intersection(ray& r, box_node& root_node) {
         has_any_intersection |= curr_hit.has_intersection;
     }
 
-    return closest_hit;
+    if (has_any_intersection) {
+        return closest_hit;
+    }
+    return hit();
 }
 
 
@@ -445,3 +435,50 @@ __device__ hit ray_triangle_intersection(ray& r, box_node& root_node) {
 // __device__ vector ray_triangle_intersection(ray r, triangle* tris, bool* has_intersection, double* t_out) {
 
 // }
+
+
+
+
+
+
+
+box_node* prepare_box_node_for_gpu(box_node* cpu_node) {
+    bool is_second_to_last_node = true;
+    for (int i = 0; i < cpu_node->num_children; i++) {
+        box_node* curr_child = &(cpu_node->children[i]);
+        if (!curr_child->num_children == 0) {
+            is_second_to_last_node = false;
+            curr_child = prepare_box_node_for_gpu(curr_child);
+        }
+    }
+
+    if (is_second_to_last_node) {
+        int size_of_children = sizeof(box_node) * cpu_node->num_children;
+        box_node* gpu_children;
+        hipMalloc(&gpu_children, size_of_children);
+        hipMemcpy(gpu_children, cpu_node->children, size_of_children, hipMemcpyHostToDevice);
+        cpu_node->children = gpu_children;
+
+        int total_size = size_of_children + sizeof(box_node);
+        box_node* gpu_node;
+        hipMalloc(&gpu_node, total_size);
+        hipMemcpy(gpu_node, cpu_node, total_size, hipMemcpyHostToDevice);
+        return gpu_node;
+    }
+
+
+    int size_of_children = sizeof(box_node) * cpu_node->num_children;
+
+    box_node* gpu_children;
+    hipMalloc(&gpu_children, size_of_children);
+    hipMemcpy(gpu_children, cpu_node->children, size_of_children, hipMemcpyHostToDevice);
+
+    cpu_node->children = gpu_children;
+
+    int total_size = size_of_children + sizeof(box_node);
+    box_node* gpu_node;
+    hipMalloc(&gpu_node, total_size);
+    hipMemcpy(gpu_node, cpu_node, total_size, hipMemcpyHostToDevice);
+
+    return gpu_node;
+}

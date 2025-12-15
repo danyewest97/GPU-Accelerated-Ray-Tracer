@@ -100,9 +100,11 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
 
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
-__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, box_node root_node, int num_tris, int num_pixels, int num_threads) {
+__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, box_node* root_node, int num_tris, int num_pixels, int num_threads) {
     int global_index = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("test kernel started\n");
+
+    // printf("%f\n", root_node->children[0].box.min_x);
 
     while (global_index < num_pixels) {
         // Creating coalesced memory reads (where thread 1 reads index 1, thread 2 index 2, thread 1 index 3, thread 2 index 4, etc) by starting 
@@ -113,18 +115,16 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
         int i = global_index;
         global_index += num_threads;
 
+
         ray primary_ray = generate_camera_ray(cam, img_dimensions, i);
-        bool has_an_intersection[1] = {false};
+        bool has_an_intersection = false;
         for (int j = 0; j < num_tris; j++) {
-            triangle curr_tri = triangles[j];
-            bool has_intersection[1] = {false};
-            double t_out[1] = {0};
             hit collision = ray_triangle_intersection(primary_ray, root_node);
-            has_an_intersection[0] |= collision.has_intersection;
+            has_an_intersection |= collision.has_intersection;
         }
 
         __syncthreads();
-        if (has_an_intersection[0]) {
+        if (has_an_intersection) {
             color white(1, 1, 1);
             img_out[i] = white;                                 // VERY slow, unsure why or how to solve but needs to be optimized
         }
@@ -163,7 +163,7 @@ color* run(int width, int height)
 
     dimensions img_dim(width, height);
 
-    int num_tris = 20;
+    int num_tris = 1;
     int size_of_triangles = num_tris * sizeof(triangle);
     triangle* triangles = new triangle[num_tris];
     
@@ -183,19 +183,20 @@ color* run(int width, int height)
     hipMalloc(&gpu_triangles, size_of_triangles);
     hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
     
-    box_node root_node = generate_bounding_box_tree(triangles, num_tris);
-    root_node = prepare_box_node_for_gpu(root_node);
-    
+
+    box_node* root_node = generate_bounding_box_tree(triangles, num_tris);
+    box_node* gpu_node = prepare_box_node_for_gpu(root_node);
+
+
     auto start = std::chrono::high_resolution_clock::now();
 
     int num_threads = 400;
 
     // Starting the kernel
-    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, root_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, gpu_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
-    box_node node1 = generate_bounding_box_tree(triangles, num_tris);
     
     auto finish = std::chrono::high_resolution_clock::now();
     std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "\n";
