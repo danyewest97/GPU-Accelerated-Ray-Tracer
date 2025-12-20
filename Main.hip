@@ -8,6 +8,7 @@
 #include <cstdlib> // Standard library with many useful functions
 #include <chrono> // Library used for timing, for measuring performance
 #include <cmath> // Standard math library for things like sine and cosine functions
+#include <bitset> // Standard bit library for a niche application in specific structs needing binary representation of an int
 
 // Custom/local library files
 #include "main_structs.cpp" // Includes all of the required main structs and their constructors, plus some methods for them
@@ -163,11 +164,12 @@ color* run(int width, int height)
 
     dimensions img_dim(width, height);
 
-    int num_tris = 1;
+    int num_tris = 20;
     int size_of_triangles = num_tris * sizeof(triangle);
     triangle* triangles = new triangle[num_tris];
     
-    srand(time(0));                                             // Generating a pseudo-random seed depending on the time each iteration
+    // srand(time(0));                                             // Generating a pseudo-random seed depending on the time each iteration
+    srand(1);                                             // Generating a pseudo-random seed depending on the time each iteration
     material placeholder_material(color(255, 255, 255), 1, 0, 0);
     for (int i = 0; i < num_tris; i++) {
         vector a((rand() % 101) - 50, (rand() % 101) - 50, 1);
@@ -184,16 +186,19 @@ color* run(int width, int height)
     hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
     
 
-    box_node* root_node = generate_bounding_box_tree(triangles, num_tris);
-    box_node* gpu_node = prepare_box_node_for_gpu(root_node);
+    box_node* root_node = generate_box_tree(triangles, num_tris);
 
+    for (int i = 0; i < 8; i++) {
+        printf("%i\n", root_node->children[i]->num_children);
+    }
+    // box_node* gpu_node = prepare_box_node_for_gpu(root_node);
 
     auto start = std::chrono::high_resolution_clock::now();
 
     int num_threads = 400;
 
     // Starting the kernel
-    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, gpu_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    // test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, gpu_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
