@@ -101,11 +101,14 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
 
 // Note: For some reason (probably a compilation bug or something), HIP seems to break when I put two identical print statements in here
 // -- so don't do that!
-__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, triangle* triangles, box_node* root_node, int num_tris, int num_pixels, int num_threads) {
+__global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, box_node* root_node, int num_pixels, int num_threads) {
     int global_index = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("test kernel started\n");
-
+    
     // printf("%f\n", root_node->children[0].box.min_x);
+    for (int i = 0; i < 8; i++) {
+        if (root_node->children[i]->num_children > 0) printf("%f\n", root_node->children[i]->children[0]->box.min_x);
+    }
 
     while (global_index < num_pixels) {
         // Creating coalesced memory reads (where thread 1 reads index 1, thread 2 index 2, thread 1 index 3, thread 2 index 4, etc) by starting 
@@ -118,16 +121,13 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
 
 
         ray primary_ray = generate_camera_ray(cam, img_dimensions, i);
-        bool has_an_intersection = false;
-        for (int j = 0; j < num_tris; j++) {
-            hit collision = ray_triangle_intersection(primary_ray, root_node);
-            has_an_intersection |= collision.has_intersection;
-        }
-
+        hit collision = ray_triangle_intersection(primary_ray, root_node);
+        
         __syncthreads();
-        if (has_an_intersection) {
+        if (collision.has_intersection) {
+            // printf("\n%d\n", collision.has_intersection);
             color white(1, 1, 1);
-            img_out[i] = white;                                 // VERY slow, unsure why or how to solve but needs to be optimized
+            img_out[i] = white;
         }
     }
     
@@ -141,6 +141,7 @@ __global__ void initialize() {};
 // Important note: not sure how much overhead variable creation and logic happening inside the kernel is adding, because I am not just sending
 // a shader to the GPU for it to handle and send back, but actually making new variables and doing more than *just* matrix matrix multiplication
 // on the kernel
+// ALSO hipDeviceReset() is BROKEN, DON'T USE IT
 
 color* run(int width, int height)
 {
@@ -181,27 +182,28 @@ color* run(int width, int height)
     }
 
     // Copying our triangle data to the GPU
-    triangle* gpu_triangles;
-    hipMalloc(&gpu_triangles, size_of_triangles);
-    hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
+    // triangle* gpu_triangles;
+    // hipMalloc(&gpu_triangles, size_of_triangles);
+    // hipMemcpy(gpu_triangles, triangles, size_of_triangles, hipMemcpyHostToDevice);
     
 
     box_node* root_node = generate_box_tree(triangles, num_tris);
 
     for (int i = 0; i < 8; i++) {
-        printf("%i\n", root_node->children[i]->num_children);
+        if (root_node->children[i]->num_children > 0) printf("%f\n", root_node->children[i]->children[0]->box.min_x);
     }
-    // box_node* gpu_node = prepare_box_node_for_gpu(root_node);
+    box_node* gpu_node = prepare_box_node_for_gpu(root_node);
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    int num_threads = 400;
+    int num_threads = 1;
 
     // Starting the kernel
-    // test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_triangles, gpu_node, num_tris, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
+    test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_node, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive
     
     // Wait on all active streams on the current device. VERY NECESSARY
     hipDeviceSynchronize();
+    // hipDeviceReset();
     
     auto finish = std::chrono::high_resolution_clock::now();
     std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count() << "\n";
@@ -211,7 +213,6 @@ color* run(int width, int height)
     color* result = new color[img_size];
     hipMemcpy(result, img_out, img_size, hipMemcpyDeviceToHost);
 
-    hipDeviceReset();
 
 
 

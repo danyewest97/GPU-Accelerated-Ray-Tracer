@@ -5,9 +5,12 @@
 import java.util.*;
 import java.awt.*;
 import java.awt.Color;                      // Specifying which Color class to use (unsure why this was an issue, there should only be one, but oh 
-                                            // well -- maybe util has its own Color class that I didn't know about)
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+// well -- maybe util has its own Color class that I didn't know about)
 import java.awt.image.*;
 import javax.swing.*;
+import javax.swing.Timer;
 
 public class Main {
     public static int width = 400;
@@ -103,6 +106,18 @@ public class Main {
         System.out.println("Running!");
         JFrame frame = createFrame(width, height);
         JPanel panel = createPanel(frame);
+
+        // Timer canceller = new Timer(1000, new ActionListener() {
+        //     long start = System.currentTimeMillis();
+        //     @Override
+        //     public void actionPerformed(ActionEvent e) {
+        //         if (System.currentTimeMillis() - start >= 10000) {
+        //             System.exit(0);
+        //         }
+        //     }
+        // });
+        // canceller.start();
+
 
         // Note: DO NOT PUT THIS IN A LOOP OR TIMER WITHOUT MAKING SOME SORT OF TERMINATION SAFETY!! THE GPU CAN CRASH WHEN TERMINATING PREMATURELY!!
         for (int i = 0; i < 1; i++) {

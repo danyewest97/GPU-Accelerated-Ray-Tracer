@@ -102,7 +102,7 @@ struct box_node {
     // Each node has up to eight child nodes and a parent node
     box_node* parent;
     int num_children = 8;
-    box_node* children[8];
+    box_node** children = new box_node*[num_children];
     bool is_empty = false;
 
     box_node() {}
@@ -442,9 +442,16 @@ __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
     vector& direction = r.direction;
     vector& origin = r.origin;
 
+    if (root_node->is_empty) {
+        return hit();
+    }
+
     if (root_node->num_children == 0) {
-        hit tri_hit = ray_triangle_intersection(r, root_node->box.tri);
-        return tri_hit;
+        if (ray_box_intersection(r, root_node->box)) {
+            hit tri_hit = ray_triangle_intersection(r, root_node->box.tri);
+            return tri_hit;
+        }
+        return hit();
     }
 
     hit closest_hit;
@@ -452,7 +459,7 @@ __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
 
     for (int i = 0; i < root_node->num_children; i++) {
         box_node* curr_child = root_node->children[i];
-        if (!ray_box_intersection(r, curr_child->box)) continue;
+        if (curr_child->is_empty || !ray_box_intersection(r, curr_child->box)) continue;
 
         hit curr_hit = ray_triangle_intersection(r, curr_child);
 
@@ -487,46 +494,32 @@ __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
 
 
 
-// box_node* prepare_box_node_for_gpu(box_node* cpu_node) {
-//     bool is_second_to_last_node = true;
-//     for (int i = 0; i < cpu_node.num_children; i++) {
-//         box_node* curr_child = &(cpu_node.children[i]);
-//         if (!curr_child->num_children == 0) {
-//             is_second_to_last_node = false;
-//             curr_child = prepare_box_node_for_gpu(curr_child);
-//         }
-//     }
+box_node* prepare_box_node_for_gpu(box_node* cpu_node) {
+    if (cpu_node->num_children == 0) {
+        box_node* gpu_node;
+        hipMalloc(&gpu_node, sizeof(box_node));
+        hipMemcpy(gpu_node, cpu_node, sizeof(box_node), hipMemcpyHostToDevice);
+        return gpu_node;
+    }
 
-//     if (is_second_to_last_node) {
-//         int size_of_children = sizeof(box_node) * cpu_node.num_children;
-//         box_node* gpu_children;
-//         hipMalloc(&gpu_children, size_of_children);
-//         hipMemcpy(gpu_children, cpu_node.children, size_of_children, hipMemcpyHostToDevice);
-//         cpu_node.children = gpu_children;
-
-//         int total_size = size_of_children + sizeof(box_node);
-//         box_node* gpu_node;
-//         hipMalloc(&gpu_node, total_size);
-//         hipMemcpy(gpu_node, cpu_node, total_size, hipMemcpyHostToDevice);
-//         return gpu_node;
-//     }
+    for (int i = 0; i < cpu_node->num_children; i++) {
+        cpu_node->children[i] = prepare_box_node_for_gpu(cpu_node->children[i]);
+    }
 
 
-//     int size_of_children = sizeof(box_node) * cpu_node.num_children;
+    int size_of_children = sizeof(box_node) * cpu_node->num_children;
+    box_node** gpu_children;
+    hipMalloc(&gpu_children, size_of_children);
+    hipMemcpy(gpu_children, cpu_node->children, size_of_children, hipMemcpyHostToDevice);
+    cpu_node->children = gpu_children;
 
-//     box_node* gpu_children;
-//     hipMalloc(&gpu_children, size_of_children);
-//     hipMemcpy(gpu_children, cpu_node.children, size_of_children, hipMemcpyHostToDevice);
 
-//     cpu_node.children = gpu_children;
-
-//     int total_size = size_of_children + sizeof(box_node);
-//     box_node* gpu_node;
-//     hipMalloc(&gpu_node, total_size);
-//     hipMemcpy(gpu_node, cpu_node, total_size, hipMemcpyHostToDevice);
-
-//     return gpu_node;
-// }
+    int size_of_node = size_of_children + sizeof(box_node);
+    box_node* gpu_node;
+    hipMalloc(&gpu_node, size_of_node);
+    hipMemcpy(gpu_node, cpu_node, size_of_node, hipMemcpyHostToDevice);
+    return gpu_node;
+}
 
 
 
