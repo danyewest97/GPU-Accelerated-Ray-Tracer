@@ -9,6 +9,7 @@
 #include <chrono> // Library used for timing, for measuring performance
 #include <cmath> // Standard math library for things like sine and cosine functions
 #include <bitset> // Standard bit library for a niche application in specific structs needing binary representation of an int
+#include <vector> // Standard vector library (can only be used on CPU, unfortunately)
 
 // Custom/local library files
 #include "main_structs.cpp" // Includes all of the required main structs and their constructors, plus some methods for them
@@ -104,11 +105,6 @@ __device__ ray generate_camera_ray(camera curr_cam, dimensions img_dim, int inde
 __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimensions, box_node* root_node, int num_pixels, int num_threads) {
     int global_index = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("test kernel started\n");
-    
-    // printf("%f\n", root_node->children[0].box.min_x);
-    for (int i = 0; i < 8; i++) {
-        if (root_node->children[i]->num_children > 0) printf("%f\n", root_node->children[i]->children[0]->box.min_x);
-    }
 
     while (global_index < num_pixels) {
         // Creating coalesced memory reads (where thread 1 reads index 1, thread 2 index 2, thread 1 index 3, thread 2 index 4, etc) by starting 
@@ -125,7 +121,6 @@ __global__ void test_kernel(color* img_out, camera cam, dimensions img_dimension
         
         __syncthreads();
         if (collision.has_intersection) {
-            // printf("\n%d\n", collision.has_intersection);
             color white(1, 1, 1);
             img_out[i] = white;
         }
@@ -181,6 +176,7 @@ color* run(int width, int height)
         triangles[i] = test_tri_1;
     }
 
+
     // Copying our triangle data to the GPU
     // triangle* gpu_triangles;
     // hipMalloc(&gpu_triangles, size_of_triangles);
@@ -189,14 +185,15 @@ color* run(int width, int height)
 
     box_node* root_node = generate_box_tree(triangles, num_tris);
 
-    for (int i = 0; i < 8; i++) {
-        if (root_node->children[i]->num_children > 0) printf("%f\n", root_node->children[i]->children[0]->box.min_x);
-    }
+    // for (int i = 0; i < 8; i++) {
+    //     if (root_node->children[i]->num_children > 0) printf("%f\n", root_node->children[i]->children[0]->box.min_x);
+    // }
     box_node* gpu_node = prepare_box_node_for_gpu(root_node);
 
     auto start = std::chrono::high_resolution_clock::now();
 
     int num_threads = 1;
+
 
     // Starting the kernel
     test_kernel<<<num_threads, 1>>>(img_out, main_cam, img_dim, gpu_node, num_pixels, num_threads);               // Start index is inclusive, end index is exclusive

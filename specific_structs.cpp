@@ -40,7 +40,7 @@ struct bounding_box {
     }
 
     // Constructor without a tri argument, used when this box represents the bounds of multiple other boxes or triangles
-    bounding_box(double _min_x, double _max_x, double _min_y, double _max_y, double _min_z, double _max_z) {
+    __host__ __device__ bounding_box(double _min_x, double _max_x, double _min_y, double _max_y, double _min_z, double _max_z) {
         min_x = _min_x;
         max_x = _max_x;
         min_y = _min_y;
@@ -55,36 +55,21 @@ struct bounding_box {
 
 // Returns a bounding box around the given triangle
 bounding_box generate_bounding_box(triangle tri) {
-    // Manually finding the minimum and maximum x, y, and z values to create a bounding box around the given triangle
-    double min_x = tri.a.x;
-    double min_y = tri.a.y;
-    double min_z = tri.a.z;
+    std::vector<double> x_vals = {tri.a.x, tri.b.x, tri.c.x};
+    std::vector<double> y_vals = {tri.a.y, tri.b.y, tri.c.y};
+    std::vector<double> z_vals = {tri.a.z, tri.b.z, tri.c.z};
+    
+    std::sort(x_vals.begin(), x_vals.end());
+    std::sort(y_vals.begin(), y_vals.end());
+    std::sort(z_vals.begin(), z_vals.end());
+    
+    double min_x = x_vals.front();
+    double min_y = y_vals.front();
+    double min_z = z_vals.front();
 
-
-    if (tri.b.x < min_x) min_x = tri.b.x;
-    if (tri.c.x < min_x) min_x = tri.c.x;
-
-    if (tri.b.y < min_y) min_y = tri.b.y;
-    if (tri.c.y < min_y) min_y = tri.c.y;
-
-    if (tri.b.z < min_z) min_z = tri.b.z;
-    if (tri.c.z < min_z) min_z = tri.c.z;
-
-
-
-    double max_x = tri.a.x;
-    double max_y = tri.a.y;
-    double max_z = tri.a.z;
-
-
-    if (tri.b.x > max_x) max_x = tri.b.x;
-    if (tri.c.x > max_x) max_x = tri.c.x;
-
-    if (tri.b.y > max_y) max_y = tri.b.y;
-    if (tri.c.y > max_y) max_y = tri.c.y;
-
-    if (tri.b.z > max_z) max_z = tri.b.z;
-    if (tri.c.z > max_z) max_z = tri.c.z;
+    double max_x = x_vals.back();
+    double max_y = y_vals.back();
+    double max_z = z_vals.back();
 
     bounding_box result(tri, min_x, max_x, min_y, max_y, min_z, max_z);
     return result;
@@ -138,53 +123,35 @@ bounding_box generate_bounding_box(box_node node) {
     int num_children = node.num_children;
     if (num_children == 0) return node.box;
 
-    int num_values_per_child = 2;
-    int num_raw_values = num_children * num_values_per_child;
-    
-    double* x_values = new double[num_raw_values];
-    double* y_values = new double[num_raw_values];
-    double* z_values = new double[num_raw_values];
+    std::vector<double> x_vals;
+    std::vector<double> y_vals;
+    std::vector<double> z_vals;
     
     for (int i = 0; i < num_children; i++) {
         bounding_box curr_box = node.children[i]->box;
         
-        int num_values_per_box = 2;
-        int value_idx = i * num_values_per_box;
-        
-        x_values[value_idx] = curr_box.min_x;
-        x_values[value_idx + 1] = curr_box.max_x;
-        
-        y_values[value_idx] = curr_box.min_z;
-        y_values[value_idx + 1] = curr_box.max_y;
-        
-        z_values[value_idx] = curr_box.min_z;
-        z_values[value_idx + 1] = curr_box.max_z;
-    }
-    
-    
-    // Manually finding the minimum and maximum x, y, and z values to create a bounding box around the given triangle
-    double min_x = x_values[0];
-    double min_y = y_values[0];
-    double min_z = z_values[0];
-    
-    for (int i = 1; i < num_raw_values; i++) {
-        if (x_values[i] < min_x) min_x = x_values[i];
-        if (y_values[i] < min_y) min_y = y_values[i];
-        if (z_values[i] < min_z) min_z = z_values[i];
-    }
-    
-    
-    double max_x = x_values[0];
-    double max_y = y_values[0];
-    double max_z = z_values[0];
+        x_vals.push_back(curr_box.min_x);
+        x_vals.push_back(curr_box.max_x);
 
-    
-    for (int i = 1; i < num_raw_values; i++) {
-        if (x_values[i] > max_x) max_x = x_values[i];
-        if (y_values[i] > max_y) max_y = y_values[i];
-        if (z_values[i] > max_z) max_z = z_values[i];
+        y_vals.push_back(curr_box.min_y);
+        y_vals.push_back(curr_box.max_y);
+
+        z_vals.push_back(curr_box.min_z);
+        z_vals.push_back(curr_box.max_z);
     }
     
+    
+    std::sort(x_vals.begin(), x_vals.end());
+    std::sort(y_vals.begin(), y_vals.end());
+    std::sort(z_vals.begin(), z_vals.end());
+
+    double min_x = x_vals.front();
+    double min_y = y_vals.front();
+    double min_z = z_vals.front();
+
+    double max_x = x_vals.back();
+    double max_y = y_vals.back();
+    double max_z = z_vals.back();
     
     bounding_box result(min_x, max_x, min_y, max_y, min_z, max_z);
     return result;
@@ -194,53 +161,37 @@ bounding_box generate_bounding_box(box_node node) {
 // Returns a bounding box around the given boxes
 bounding_box generate_bounding_box(centroid* centers, int num_centers) {
     int num_values_per_center = 2;
-    int num_raw_values = num_centers * num_values_per_center;
+    int num_values = num_centers * num_values_per_center;
     
-    double* x_values = new double[num_raw_values];
-    double* y_values = new double[num_raw_values];
-    double* z_values = new double[num_raw_values];
+    std::vector<double> x_vals;
+    std::vector<double> y_vals;
+    std::vector<double> z_vals;
     
     for (int i = 0; i < num_centers; i++) {
         bounding_box curr_box = centers[i].box;
         
-        int num_values_per_box = 2;
-        int value_idx = i * num_values_per_box;
-        
-        x_values[value_idx] = curr_box.min_x;
-        x_values[value_idx + 1] = curr_box.max_x;
-        
-        y_values[value_idx] = curr_box.min_z;
-        y_values[value_idx + 1] = curr_box.max_y;
-        
-        z_values[value_idx] = curr_box.min_z;
-        z_values[value_idx + 1] = curr_box.max_z;
-    }
-    
-    
-    // Manually finding the minimum and maximum x, y, and z values to create a bounding box around the given triangle
-    double min_x = x_values[0];
-    double min_y = y_values[0];
-    double min_z = z_values[0];
-    
-    for (int i = 1; i < num_raw_values; i++) {
-        if (x_values[i] < min_x) min_x = x_values[i];
-        if (y_values[i] < min_y) min_y = y_values[i];
-        if (z_values[i] < min_z) min_z = z_values[i];
-    }
-    
-    
-    double max_x = x_values[0];
-    double max_y = y_values[0];
-    double max_z = z_values[0];
+        x_vals.push_back(curr_box.min_x);
+        x_vals.push_back(curr_box.max_x);
 
-    
-    for (int i = 1; i < num_raw_values; i++) {
-        if (x_values[i] > max_x) max_x = x_values[i];
-        if (y_values[i] > max_y) max_y = y_values[i];
-        if (z_values[i] > max_z) max_z = z_values[i];
+        y_vals.push_back(curr_box.min_y);
+        y_vals.push_back(curr_box.max_y);
+
+        z_vals.push_back(curr_box.min_z);
+        z_vals.push_back(curr_box.max_z);
     }
     
+    std::sort(x_vals.begin(), x_vals.end());
+    std::sort(y_vals.begin(), y_vals.end());
+    std::sort(z_vals.begin(), z_vals.end());
     
+    double min_x = x_vals.front();
+    double min_y = y_vals.front();
+    double min_z = z_vals.front();
+
+    double max_x = x_vals.back();
+    double max_y = y_vals.back();
+    double max_z = z_vals.back();
+
     bounding_box result(min_x, max_x, min_y, max_y, min_z, max_z);
     return result;
 }
@@ -439,9 +390,6 @@ __device__ bool ray_box_intersection(ray& r, bounding_box& box) {
 
 // Checks for a ray-triangle intersection given the root node of a tree of bounding boxes
 __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
-    vector& direction = r.direction;
-    vector& origin = r.origin;
-
     if (root_node->is_empty) {
         return hit();
     }
@@ -462,7 +410,7 @@ __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
         if (curr_child->is_empty || !ray_box_intersection(r, curr_child->box)) continue;
 
         hit curr_hit = ray_triangle_intersection(r, curr_child);
-
+        
         if (curr_hit.has_intersection && !has_any_intersection) {
             closest_hit = curr_hit;
         } else if (curr_hit.has_intersection) {
