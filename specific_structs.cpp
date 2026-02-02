@@ -160,9 +160,6 @@ bounding_box generate_bounding_box(box_node node) {
 
 // Returns a bounding box around the given boxes
 bounding_box generate_bounding_box(centroid* centers, int num_centers) {
-    int num_values_per_center = 2;
-    int num_values = num_centers * num_values_per_center;
-    
     std::vector<double> x_vals;
     std::vector<double> y_vals;
     std::vector<double> z_vals;
@@ -395,11 +392,8 @@ __device__ hit ray_triangle_intersection(ray& r, box_node* root_node) {
     }
 
     if (root_node->num_children == 0) {
-        if (ray_box_intersection(r, root_node->box)) {
-            hit tri_hit = ray_triangle_intersection(r, root_node->box.tri);
-            return tri_hit;
-        }
-        return hit();
+        hit tri_hit = ray_triangle_intersection(r, root_node->box.tri);
+        return tri_hit;
     }
 
     hit closest_hit;
